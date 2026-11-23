@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+</head>
+<body style="margin:0">
+<title>Validador de Saldo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: barra de filtros no topo, tabela consolidada à esquerda, painel de novos inputs à direita (empilha no celular). */
+:root{
+  --bg:#f3f5f6; --surface:#ffffff; --surface-2:#eaeef0; --line:#d5dbde; --fg:#17242b; --muted:#5d6e77;
+  --accent:#0b5f73; --accent-fg:#ffffff; --accent-soft:#d9ecf1;
+  --ok:#157347; --ok-bg:#dcf0e4; --warn:#8a5a00; --warn-bg:#fbebc6; --crit:#a52a2a; --crit-bg:#f8dcdc; --info:#3b4f8a; --info-bg:#e1e6f6;
+  --font-display:'Space Grotesk',system-ui,sans-serif; --font-body:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1a1f; --surface:#17252c; --surface-2:#1f3039; --line:#2d424c; --fg:#e4edf1; --muted:#93a8b2;
+  --accent:#58b8cf; --accent-fg:#06222a; --accent-soft:#18394380;
+  --ok:#6fd49a; --ok-bg:#163a28; --warn:#f0c15a; --warn-bg:#3d3112; --crit:#f08a8a; --crit-bg:#431d1d; --info:#9fb2ee; --info-bg:#222c4d; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#0f1a1f; --surface:#17252c; --surface-2:#1f3039; --line:#2d424c; --fg:#e4edf1; --muted:#93a8b2;
+  --accent:#58b8cf; --accent-fg:#06222a; --accent-soft:#18394380;
+  --ok:#6fd49a; --ok-bg:#163a28; --warn:#f0c15a; --warn-bg:#3d3112; --crit:#f08a8a; --crit-bg:#431d1d; --info:#9fb2ee; --info-bg:#222c4d; color-scheme:dark;}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:14px;line-height:1.45;
+  padding-block:20px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1320px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1,h2{font-family:var(--font-display);margin:0;text-wrap:balance}
+h1{font-size:24px;letter-spacing:-.01em}
+h2{font-size:15px}
+.top{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+.top p{margin:4px 0 0;color:var(--muted)}
+.top .src{font-size:12px;color:var(--muted)}
+button,input,select{font:inherit;color:inherit}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:8px 14px;cursor:pointer;font-weight:500}
+.btn:hover{background:var(--surface-2)}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.small{padding:5px 10px;font-size:12px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px}
+.filters .actions{grid-column:1/-1}
+.filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px 14px;align-items:end}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.field input,.field select{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:8px 10px;width:100%;min-width:0}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;cursor:pointer;display:flex;gap:8px;align-items:baseline;font-weight:500}
+.chip b{font-variant-numeric:tabular-nums;font-family:var(--font-display);font-size:15px}
+.chip[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+@media (max-width:980px){.main{grid-template-columns:minmax(0,1fr)}}
+.tablebox{padding:0;overflow:hidden}
+.tablehead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--line)}
+.tablehead .meta{color:var(--muted);font-size:12px}
+.scroll{overflow:auto;max-height:640px}
+table{border-collapse:collapse;width:100%;min-width:640px}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:middle}
+th{position:sticky;top:0;background:var(--surface-2);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);cursor:pointer;user-select:none;white-space:nowrap;z-index:1}
+th.num,td.num{text-align:right;font-variant-numeric:tabular-nums}
+th[aria-sort="ascending"]::after{content:" ▲";font-size:9px}
+th[aria-sort="descending"]::after{content:" ▼";font-size:9px}
+td.cod{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:500}
+td.desc{min-width:220px}
+tr:hover td{background:var(--surface-2)}
+.edited{font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--info);background:var(--info-bg);border-radius:4px;padding:1px 5px;margin-left:6px;white-space:nowrap}
+.status{display:inline-block;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600;white-space:nowrap}
+.s-ok{background:var(--ok-bg);color:var(--ok)}
+.s-div{background:var(--crit-bg);color:var(--crit)}
+.s-nt{background:var(--warn-bg);color:var(--warn)}
+.s-ng{background:var(--info-bg);color:var(--info)}
+.diff-neg{color:var(--crit)} .diff-pos{color:var(--warn)} .diff-zero{color:var(--muted)}
+.empty{padding:32px 16px;text-align:center;color:var(--muted)}
+.side{display:flex;flex-direction:column;gap:12px}
+.side form{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.side form .full{grid-column:1/-1}
+.side .hint{margin:0;color:var(--muted);font-size:12px}
+.msg{font-size:12px;min-height:16px}
+.msg.err{color:var(--crit)} .msg.ok{color:var(--ok)}
+.entries{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.entries li{display:flex;gap:8px;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:12px}
+.entries li span{min-width:0;overflow-wrap:anywhere}
+.entries .q{font-variant-numeric:tabular-nums;font-weight:600}
+.x{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:2px 6px;border-radius:4px}
+.x:hover{color:var(--crit);background:var(--crit-bg)}
+.row-between{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>Validador de Saldo</h1>
+      <p>Compara o saldo da Genica com o saldo do Totvs, produto a produto.</p>
+      <div class="src" id="src"></div>
+    </div>
+    <div class="actions">
+      <label class="btn" for="upload" style="cursor:pointer">Carregar nova planilha</label>
+      <input id="upload" class="sr" type="file" accept=".xlsx,.xls,.csv">
+      <button class="btn primary" id="export" type="button">Exportar Excel</button>
+      <button class="btn" id="copy" type="button">Copiar tabela</button>
+    </div>
+  </div>
+  <div class="msg" id="topmsg" role="status"></div>
+
+  <section class="panel" aria-label="Filtros de validação">
+    <form id="filters" class="filters">
+      <div class="field"><label for="f-q">Buscar produto</label><input id="f-q" type="search" placeholder="Código ou descrição"></div>
+      <div class="field"><label for="f-gbase">Saldo Genica</label>
+        <select id="f-gbase"><option value="disp" selected>Saldo disponível (coluna H)</option><option value="saldo">Saldo total</option></select></div>
+      <div class="field"><label for="f-tbase">Saldo Totvs</label>
+        <select id="f-tbase"><option value="qtd">Quantidade total</option><option value="disp">Quantidade menos empenho</option></select></div>
+      <div class="field"><label for="f-block">Bloqueio (Genica)</label><select id="f-block"></select></div>
+      <div class="field"><label for="f-arm">Armazém (Totvs)</label><select id="f-arm"></select></div>
+      <div class="field"><label for="f-status">Status</label>
+        <select id="f-status">
+          <option value="">Todos</option><option value="OK">OK</option><option value="Divergente">Divergente</option>
+          <option value="Ausente no Totvs">Ausente no Totvs</option><option value="Ausente na Genica">Ausente na Genica</option>
+        </select></div>
+      <div class="actions"><button class="btn primary" type="submit">Aplicar filtros</button><button class="btn" type="button" id="reset">Limpar</button></div>
+    </form>
+  </section>
+
+  <div class="chips" id="chips" aria-label="Resumo por status"></div>
+
+  <div class="main">
+    <section class="panel tablebox">
+      <div class="tablehead"><h2>Produtos consolidados</h2><span class="meta" id="tmeta"></span></div>
+      <div class="scroll">
+        <table id="tbl">
+          <thead><tr>
+            <th data-k="cod" scope="col">Código</th>
+            <th data-k="desc" scope="col">Descrição</th>
+            <th data-k="g" class="num" scope="col">QTD Genica</th>
+            <th data-k="t" class="num" scope="col">QTD Totvs</th>
+            <th data-k="diff" class="num" scope="col">Diferença</th>
+            <th data-k="status" scope="col">Status</th>
+          </tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+        <div class="empty" id="empty" hidden>Nenhum produto com esses filtros.</div>
+      </div>
+    </section>
+
+    <aside class="side">
+      <section class="panel">
+        <h2>Novos inputs</h2>
+        <p class="hint" style="margin:6px 0 12px">Lance uma quantidade para um produto. Ela entra na tabela e no Status na hora.</p>
+        <form id="entry">
+          <div class="field"><label for="e-cod">Código</label><input id="e-cod" list="codes" autocomplete="off" required></div>
+          <div class="field"><label for="e-sys">Sistema</label><select id="e-sys"><option value="g">Genica</option><option value="t">Totvs</option></select></div>
+          <div class="field full"><label for="e-desc">Descrição</label><input id="e-desc" placeholder="Preenche sozinho se o código existe"></div>
+          <div class="field"><label for="e-qtd">Quantidade</label><input id="e-qtd" type="number" step="any" required></div>
+          <div class="field"><label for="e-mode">Como lançar</label><select id="e-mode"><option value="add">Somar ao saldo</option><option value="set">Substituir saldo</option></select></div>
+          <div class="full actions"><button class="btn primary" type="submit">Adicionar</button></div>
+          <div class="full msg" id="emsg" role="status"></div>
+        </form>
+        <datalist id="codes"></datalist>
+      </section>
+      <section class="panel">
+        <div class="row-between"><h2>Lançamentos</h2><button class="btn small" type="button" id="clear" hidden>Remover todos</button></div>
+        <ul class="entries" id="entries" style="margin-top:10px"></ul>
+        <p class="hint" id="noentries">Nenhum lançamento ainda.</p>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+const DATA = {"g":[["16564","BALSAMO ARGAN 4.6 L","",4.0,0.0,4.0,"NÃO - NORMAL"],["6050","BALSAMO MAMAINA 4.6 L","",64.0,28.0,36.0,"NÃO - NORMAL"],["6106","BALSAMO PROT.LEITE E OMEGA3  4.6 L","",32.0,16.0,16.0,"NÃO - NORMAL"],["23845","CONJ PO DESC ACTIVE  20G  OX 40 VOL 60ML","",2160.0,0.0,2160.0,"NÃO - NORMAL"],["1100050","CONJ. PO DESC ACIDO HIALURONICO 20G + OX 40 VOL 60ML","",192.0,0.0,192.0,"NÃO - NORMAL"],["1100051","CONJ. PO DESC CAMOMILA 20G + OX 40 VOL 60ML","",1512.0,24.0,1488.0,"NÃO - NORMAL"],["2400005","EMULSAO REVELADORA PROFESSIONAL 6 VOL 100ML","",600.0,132.0,468.0,"NÃO - NORMAL"],["2400012","EMULSAO REVELADORA PROFESSIONAL 6 VOL 900ML","",90.0,54.0,36.0,"NÃO - NORMAL"],["1300027","KIT YAMASTEROL ARGAN SHAMPOO E MULTIFUNCIONAL 320ML","",1236.0,24.0,1212.0,"NÃO - NORMAL"],["1300023","KIT YAMASTEROL BABOSA 200ML ARGAN 200ML BRANCO 200ML","",2022.0,48.0,1974.0,"NÃO - NORMAL"],["1300025","KIT YAMASTEROL BABOSA 200ML HIALURONICO 200ML COLAGENO 200ML","",390.0,12.0,378.0,"NÃO - NORMAL"],["1300028","KIT YAMASTEROL BABOSA SHAMPOO E MULTIFUNCIONAL 320ML","",642.0,12.0,630.0,"NÃO - NORMAL"],["1300029","KIT YAMASTEROL HIALURONICO SHAMPOO E MULTIFUNCIONAL 320ML","",822.0,0.0,822.0,"NÃO - NORMAL"],["1300030","KIT YAMASTEROL PROT. HIDROLISADA SHAMPOO E MULTIFUNC. 320ML","",486.0,0.0,486.0,"NÃO - NORMAL"],["1600001","MINI KIT FASHION COLOR 1.0 PRETO","",414.0,216.0,198.0,"NÃO - NORMAL"],["1600002","MINI KIT FASHION COLOR 1.1 PRETO AZULADO","",1152.0,174.0,978.0,"NÃO - NORMAL"],["1600029","MINI KIT FASHION COLOR 10.0 LOURO CLARISSIMO","",438.0,24.0,414.0,"NÃO - NORMAL"],["1600030","MINI KIT FASHION COLOR 10.1 LOURO CLARISSIMO ACINZ.","",2202.0,24.0,2178.0,"NÃO - NORMAL"],["1600003","MINI KIT FASHION COLOR 3.0 CASTANHO ESCURO","",1704.0,168.0,1536.0,"NÃO - NORMAL"],["1600004","MINI KIT FASHION COLOR 4.0 CASTANHO MEDIO","",2112.0,216.0,1896.0,"NÃO - NORMAL"],["1600005","MINI KIT FASHION COLOR 4.66 CASTANHO MEDIO VERM. INTENSO","",312.0,30.0,282.0,"NÃO - NORMAL"],["1600006","MINI KIT FASHION COLOR 4.7 CASTANHO MEDIO MARROM","",294.0,24.0,270.0,"NÃO - NORMAL"],["1600007","MINI KIT FASHION COLOR 5.0 CASTANHO CLARO","",810.0,240.0,570.0,"NÃO - NORMAL"],["1600008","MINI KIT FASHION COLOR 5.1 CASTANHO CLARO ACINZ.","",108.0,96.0,12.0,"NÃO - NORMAL"],["1600009","MINI KIT FASHION COLOR 5.26 CASTANHO CLARO IRIS. VERM. MARS.","",1008.0,12.0,996.0,"NÃO - NORMAL"],["1600010","MINI KIT FASHION COLOR 6.0 LOURO ESCURO","",786.0,360.0,426.0,"NÃO - NORMAL"],["1600011","MINI KIT FASHION COLOR 6.1 LOURO ESCURO ACINZ.","",882.0,72.0,810.0,"NÃO - NORMAL"],["1600012","MINI KIT FASHION COLOR 6.26 LOURO ESCURO IRIS. VERM. MARS.","",1536.0,24.0,1512.0,"NÃO - NORMAL"],["1600013","MINI KIT FASHION COLOR 6.31 LOURO ESCURO DOURADO ACINZ.","",78.0,6.0,72.0,"NÃO - NORMAL"],["1600015","MINI KIT FASHION COLOR 6.66 LOURO ESCURO VERM. INTENSO","",1512.0,30.0,1482.0,"NÃO - NORMAL"],["1600016","MINI KIT FASHION COLOR 6.7 LOURO ESCURO MARROM","",2766.0,36.0,2730.0,"NÃO - NORMAL"],["1600017","MINI KIT FASHION COLOR 7.0 LOURO MEDIO","",1002.0,180.0,822.0,"NÃO - NORMAL"],["1600018","MINI KIT FASHION COLOR 7.1 LOURO MEDIO ACINZ.","",3060.0,54.0,3006.0,"NÃO - NORMAL"],["1600019","MINI KIT FASHION COLOR 8.0 LOURO CLARO","",1092.0,54.0,1038.0,"NÃO - NORMAL"],["1600020","MINI KIT FASHION COLOR 8.1 LOURO CLARO ACINZ.","",276.0,36.0,240.0,"NÃO - NORMAL"],["1600021","MINI KIT FASHION COLOR 8.31 LOURO CLARO DOURADO ACINZ.","",792.0,18.0,774.0,"NÃO - NORMAL"],["1600022","MINI KIT FASHION COLOR 8.4 LOURO CLARO ACOBREADO","",564.0,24.0,540.0,"NÃO - NORMAL"],["1600023","MINI KIT FASHION COLOR 8.66 LOURO CLARO VERM. INTENSO","",1890.0,24.0,1866.0,"NÃO - NORMAL"],["1600024","MINI KIT FASHION COLOR 8.89 LOURO CLARO PEROLA","",1158.0,66.0,1092.0,"NÃO - NORMAL"],["1600025","MINI KIT FASHION COLOR 9.0 LOURO MUITO CLARO","",1374.0,54.0,1320.0,"NÃO - NORMAL"],["1600026","MINI KIT FASHION COLOR 9.1 LOURO MUITO CLARO ACINZ.","",1086.0,30.0,1056.0,"NÃO - NORMAL"],["1600027","MINI KIT FASHION COLOR 9.13 LOURO MUITO CLARO ACINZ. DOURADO","",564.0,18.0,546.0,"NÃO - NORMAL"],["1600028","MINI KIT FASHION COLOR 9.89 LOURO MUITO CLARO PEROLA","",384.0,54.0,330.0,"NÃO - NORMAL"],["1100057","MOARA PO DESC. QUERATINA 20G","",672.0,48.0,624.0,"NÃO - NORMAL"],["1600031","NANO INF. 1.0 PRETO COLOR.","",936.0,24.0,912.0,"NÃO - NORMAL"],["1600032","NANO INF. 1.1 PRETO AZULADO COLOR.","",684.0,24.0,660.0,"NÃO - NORMAL"],["1600033","NANO INF. 3.0 CASTANHO ESCURO COLOR.","",738.0,30.0,708.0,"NÃO - NORMAL"],["1600034","NANO INF. 4.0 CASTANHO MEDIO COLOR.","",1344.0,30.0,1314.0,"NÃO - NORMAL"],["1600035","NANO INF. 5.0 CASTANHO CLARO COLOR.","",1002.0,60.0,942.0,"NÃO - NORMAL"],["1600036","NANO INF. 5.1 CASTANHO CLARO ACINZENTADO COLOR.","",306.0,12.0,294.0,"NÃO - NORMAL"],["1600037","NANO INF. 5.17 CASTANHO CLARO ACINZENTADO MARROM COLOR.","",96.0,12.0,84.0,"NÃO - NORMAL"],["1600038","NANO INF. 6.0 LOURO ESCURO COLOR.","",876.0,102.0,774.0,"NÃO - NORMAL"],["1600039","NANO INF. 6.1 LOURO ESCURO ACINZENTADO COLOR.","",774.0,42.0,732.0,"NÃO - NORMAL"],["1600040","NANO INF. 6.17 LOURO ESCURO ACINZENTADO MARROM COLOR.","",66.0,24.0,42.0,"NÃO - NORMAL"],["1600041","NANO INF. 6.3 LOURO ESCURO DOURADO COLOR.","",204.0,6.0,198.0,"NÃO - NORMAL"],["1600042","NANO INF. 6.66 LOURO ESCURO VERMELHO INTENSO COLOR.","",384.0,12.0,372.0,"NÃO - NORMAL"],["1600043","NANO INF. 6.7 LOURO ESCURO MARROM COLOR.","",1356.0,12.0,1344.0,"NÃO - NORMAL"],["1600044","NANO INF. 7.0 LOURO MEDIO COLOR.","",1074.0,90.0,984.0,"NÃO - NORMAL"],["1600045","NANO INF. 7.1 LOURO MEDIO ACINZENTADO COLOR.","",1032.0,24.0,1008.0,"NÃO - NORMAL"],["1600046","NANO INF. 7.12 LOURO MEDIO ACINZ. IRISADO COLOR.","",132.0,0.0,132.0,"NÃO - NORMAL"],["1600047","NANO INF. 7.17 LOURO MEDIO ACINZENTADO MARROM COLOR.","",138.0,12.0,126.0,"NÃO - NORMAL"],["1600048","NANO INF. 7.31 LOURO MEDIO DOURADO ACINZENTADO COLOR.","",372.0,24.0,348.0,"NÃO - NORMAL"],["1600049","NANO INF. 7.4 LOURO MEDIO ACOBREADO COLOR.","",1260.0,6.0,1254.0,"NÃO - NORMAL"],["1600050","NANO INF. 7.7 LOURO MEDIO MARROM COLOR.","",816.0,0.0,816.0,"NÃO - NORMAL"],["1600051","NANO INF. 8.0 LOURO CLARO COLOR.","",552.0,48.0,504.0,"NÃO - NORMAL"],["1600052","NANO INF. 8.1 LOURO CLARO ACINZENTADO COLOR.","",912.0,18.0,894.0,"NÃO - NORMAL"],["1600053","NANO INF. 8.12 LOURO CLARO ACINZ. IRISADO COLOR.","",210.0,0.0,210.0,"NÃO - NORMAL"],["1600054","NANO INF. 8.26 LOURO CLARO IRISADO AVERM. MARSALA COLOR.","",690.0,12.0,678.0,"NÃO - NORMAL"],["1600055","NANO INF. 8.3 LOURO CLARO DOURADO COLOR.","",606.0,0.0,606.0,"NÃO - NORMAL"],["1600056","NANO INF. 8.31 LOURO CLARO DOURADO ACINZENTADO COLOR.","",384.0,36.0,348.0,"NÃO - NORMAL"],["1600057","NANO INF. 8.34 LOURO CLARO DOURADO ACOBREADO COLOR.","",192.0,0.0,192.0,"NÃO - NORMAL"],["1600058","NANO INF. 8.4 LOURO CLARO ACOBREADO COLOR.","",1068.0,6.0,1062.0,"NÃO - NORMAL"],["1600059","NANO INF. 8.66 LOURO CLARO VERMELHO INTENSO COLOR.","",366.0,18.0,348.0,"NÃO - NORMAL"],["1600060","NANO INF. 8.7 LOURO CLARO MARROM COLOR.","",240.0,0.0,240.0,"NÃO - NORMAL"],["1600061","NANO INF. 9.0 LOURO MUITO CLARO COLOR.","",318.0,18.0,300.0,"NÃO - NORMAL"],["1600062","NANO INF. 9.1 LOURO MUITO CLARO ACINZENTADO COLOR.","",30.0,6.0,24.0,"NÃO - NORMAL"],["1600063","NANO INF. 9.12 LOURO MUITO CLARO ACINZ. IRISADO COLOR.","",222.0,0.0,222.0,"NÃO - NORMAL"],["1600065","NANO INF. 9.26 LOURO MUITO CLARO IRIS.AVERM.MARSALA COLOR.","",96.0,18.0,78.0,"NÃO - NORMAL"],["1600066","NANO INF. 9.34 LOURO MUITO CLARO DOURADO ACOBREADO COLOR.","",60.0,0.0,60.0,"NÃO - NORMAL"],["1600081","NANO INF. SEM AMONIA 0.33 MIX AMARELO COLOR","",342.0,0.0,342.0,"NÃO - NORMAL"],["1600076","NANO INF. SEM AMONIA 011 MIX AZUL COLOR","",390.0,54.0,336.0,"NÃO - NORMAL"],["1600077","NANO INF. SEM AMONIA 022 MIX VIOLETA COLOR.","",240.0,18.0,222.0,"NÃO - NORMAL"],["1600079","NANO INF. SEM AMONIA 066 MIX VERMELHO COLOR.","",54.0,0.0,54.0,"NÃO - NORMAL"],["1600080","NANO INF. SEM AMONIA 088 MIX VERDE COLOR.","",150.0,54.0,96.0,"NÃO - NORMAL"],["1600075","NANO INF. SEM AMONIA 12.89 LOURO EXTRA CLARO PEROLA COLOR.","",396.0,6.0,390.0,"NÃO - NORMAL"],["1600072","NANO INF. SEM AMONIA 8.89 LOURO CLARO PEROLA COLOR.","",414.0,0.0,414.0,"NÃO - NORMAL"],["1600073","NANO INF. SEM AMONIA 9.89 LOURO MUITO CLARO PEROLADO COLOR.","",378.0,18.0,360.0,"NÃO - NORMAL"],["1600067","NANO INF.10.0 LOURO CLARISSIMO COLOR.","",426.0,18.0,408.0,"NÃO - NORMAL"],["1600068","NANO INF.10.1 LOURO CLARISSIMO ACINZENTADO  COLOR.","",300.0,12.0,288.0,"NÃO - NORMAL"],["1600069","NANO INF.10.13 LOURO CLARISSIMO ACINZ.DOURADO COLOR.","",12.0,0.0,12.0,"NÃO - NORMAL"],["1600070","NANO INF.12.11 LOURO EXTRA CLARO CINZA INTENSO COLOR.","",600.0,12.0,588.0,"NÃO - NORMAL"],["1600071","NANO INF.12.12 LOURO EXTRA CLARO ACINZ. IRISADO COLOR.","",102.0,0.0,102.0,"NÃO - NORMAL"],["1600074","NANO INF.SEM AMONIA 10.89 LOURO CLARISSIMO PEROLA COLOR.","",336.0,6.0,330.0,"NÃO - NORMAL"],["2400006","OX. CREMOSA PROFESSIONAL 10 VOL 100ML","",6396.0,348.0,6048.0,"NÃO - NORMAL"],["2400013","OX. CREMOSA PROFESSIONAL 10 VOL 900ML","",582.0,42.0,540.0,"NÃO - NORMAL"],["2400001","OX. CREMOSA PROFESSIONAL 10VOL 60ML","",696.0,84.0,612.0,"NÃO - NORMAL"],["2400007","OX. CREMOSA PROFESSIONAL 20 VOL 100ML","",576.0,252.0,324.0,"NÃO - NORMAL"],["2400014","OX. CREMOSA PROFESSIONAL 20 VOL 900ML","",1548.0,240.0,1308.0,"NÃO - NORMAL"],["2400008","OX. CREMOSA PROFESSIONAL 30 VOL 100ML","",12864.0,600.0,12264.0,"NÃO - NORMAL"],["2400003","OX. CREMOSA PROFESSIONAL 30 VOL 60ML","",1092.0,132.0,960.0,"NÃO - NORMAL"],["2400015","OX. CREMOSA PROFESSIONAL 30 VOL 900ML","",1506.0,378.0,1128.0,"NÃO - NORMAL"],["2400009","OX. CREMOSA PROFESSIONAL 40 VOL 100ML","",5496.0,492.0,5004.0,"NÃO - NORMAL"],["2400004","OX. CREMOSA PROFESSIONAL 40 VOL 60ML","",684.0,96.0,588.0,"NÃO - NORMAL"],["2400016","OX. CREMOSA PROFESSIONAL 40 VOL 900ML","",3576.0,132.0,3444.0,"NÃO - NORMAL"],["2400021","OX. CREMOSA PROFESSIONAL AMETISTA 20VOL 100ML","",144.0,60.0,84.0,"NÃO - NORMAL"],["2400022","OX. CREMOSA PROFESSIONAL AMETISTA 20VOL 900ML","",84.0,12.0,72.0,"NÃO - NORMAL"],["2400010","OX. CREMOSA PROFESSIONAL AMETISTA 30VOL 100ML","",2736.0,216.0,2520.0,"NÃO - NORMAL"],["2400011","OX. CREMOSA PROFESSIONAL AMETISTA 40VOL 100ML","",2448.0,132.0,2316.0,"NÃO - NORMAL"],["2400018","OX. CREMOSA PROFESSIONAL AMETISTA 40VOL 900ML","",3678.0,60.0,3618.0,"NÃO - NORMAL"],["1100042","PO DESC. ACIDO HIALURONICO 20G","",936.0,24.0,912.0,"NÃO - NORMAL"],["1100043","PO DESC. ACIDO HIALURONICO 50G","",504.0,96.0,408.0,"NÃO - NORMAL"],["1100044","PO DESC. ACIDO HIALURONICO REFIL 300G","",306.0,72.0,234.0,"NÃO - NORMAL"],["1100001","PO DESC. AMETISTA 10G","",9408.0,192.0,9216.0,"NÃO - NORMAL"],["1100006","PO DESC. AMETISTA 20G","",8328.0,408.0,7920.0,"NÃO - NORMAL"],["14584","PO DESC. AMETISTA 300G","",102.0,72.0,30.0,"NÃO - NORMAL"],["1100016","PO DESC. AMETISTA 50G","",1512.0,432.0,1080.0,"NÃO - NORMAL"],["1100045","PO DESC. AMETISTA 750 G","",405.0,57.0,348.0,"NÃO - NORMAL"],["1100027","PO DESC. AMETISTA REFIL 300G","",12498.0,432.0,12066.0,"NÃO - NORMAL"],["1100047","PO DESC. BLACK CARBON 20 G","",840.0,144.0,696.0,"NÃO - NORMAL"],["1100048","PO DESC. BLACK CARBON 50 G","",264.0,96.0,168.0,"NÃO - NORMAL"],["1100002","PO DESC. CAMOMILA 10G","",9888.0,384.0,9504.0,"NÃO - NORMAL"],["1100008","PO DESC. CAMOMILA 20G","",264.0,120.0,144.0,"NÃO - NORMAL"],["1100030","PO DESC. CAMOMILA REFIL 300G","",786.0,108.0,678.0,"NÃO - NORMAL"],["1100009","PO DESC. ERVAS DUST FREE 20G","",600.0,168.0,432.0,"NÃO - NORMAL"],["1100020","PO DESC. ERVAS DUST FREE 50G","",312.0,24.0,288.0,"NÃO - NORMAL"],["1100031","PO DESC. ERVAS DUST FREE REFIL 300G","",198.0,48.0,150.0,"NÃO - NORMAL"],["1100010","PO DESC. GERME DE TRIGO 20G","",888.0,72.0,816.0,"NÃO - NORMAL"],["1100032","PO DESC. GERME DE TRIGO REFIL 300G","",210.0,54.0,156.0,"NÃO - NORMAL"],["1100011","PO DESC. PEROLADO 20G","",1368.0,120.0,1248.0,"NÃO - NORMAL"],["1100022","PO DESC. PEROLADO 50G","",312.0,96.0,216.0,"NÃO - NORMAL"],["1100033","PO DESC. PEROLADO REFIL 300G","",2532.0,144.0,2388.0,"NÃO - NORMAL"],["1100012","PO DESC. PLATINADO 20G","",3624.0,360.0,3264.0,"NÃO - NORMAL"],["1100046","PO DESC. PLATINADO 750 G","",60.0,30.0,30.0,"NÃO - NORMAL"],["1100034","PO DESC. PLATINADO REFIL 300G","",2352.0,246.0,2106.0,"NÃO - NORMAL"],["1100003","PO DESC. PROTEINAS DO LEITE 10G","",2688.0,96.0,2592.0,"NÃO - NORMAL"],["1100013","PO DESC. PROTEINAS DO LEITE 20G","",2016.0,216.0,1800.0,"NÃO - NORMAL"],["1100004","PO DESC. QUERATINA 10G","",7200.0,96.0,7104.0,"NÃO - NORMAL"],["1100025","PO DESC. QUERATINA 50G","",1104.0,96.0,1008.0,"NÃO - NORMAL"],["1100036","PO DESC. QUERATINA REFIL 300G","",666.0,132.0,534.0,"NÃO - NORMAL"],["1100005","PO DESC. TRADIC. ACT. 10G","",5376.0,192.0,5184.0,"NÃO - NORMAL"],["1100015","PO DESC. TRADIC. ACT. 20G","",2160.0,288.0,1872.0,"NÃO - NORMAL"],["1100026","PO DESC. TRADIC. ACT. 50G","",2712.0,192.0,2520.0,"NÃO - NORMAL"],["1100037","PO DESC. TRADIC. ACT. REFIL 300G","",2766.0,108.0,2658.0,"NÃO - NORMAL"],["11590","SH ANTIRESIDUOS 4600 ML","",202.0,86.0,116.0,"NÃO - NORMAL"],["16557","SH ARGAN 4600ML","",70.0,36.0,34.0,"NÃO - NORMAL"],["12580","SH ERVA DOCE 4600 ML","",80.0,40.0,40.0,"NÃO - NORMAL"],["32522","SH LEITE 4600ML","",108.0,54.0,54.0,"NÃO - NORMAL"],["32611","SH NEUTRO 4600ML","",42.0,16.0,26.0,"NÃO - NORMAL"],["32581","SH PESSEGO 4600ML","",110.0,44.0,66.0,"NÃO - NORMAL"],["23609","YAMÁ BEAUTY CARE SHAMPOO CRISTAL 900ML","",30.0,12.0,18.0,"NÃO - NORMAL"],["101070002","YAMA BEAUTY KIT CLAREADOR GERME DE TRIGO","",36.0,24.0,12.0,"NÃO - NORMAL"],["3200024","YAMA BLOND REPAIR AMPOLA RECONSTRUTORA 18 ML","",24.0,0.0,24.0,"NÃO - NORMAL"],["3200028","YAMA BLOND REPAIR HIDRATACAO NOTURNA 150 ML","",12.0,0.0,12.0,"NÃO - NORMAL"],["3200006","YAMA BLOND REPAIR KIT SHAMPOO + CONDICIONADOR ILUMINADOR","",942.0,6.0,936.0,"NÃO - NORMAL"],["3200003","YAMA BLOND REPAIR SERUM FINALIZADOR 30ML","",48.0,0.0,48.0,"NÃO - NORMAL"],["3200004","YAMA BLOND REPAIR SHAMPOO ILUMINADOR 280ML","",12.0,0.0,12.0,"NÃO - NORMAL"],["3200005","YAMA BLOND REPAIR SOS RECONSTRUCAO 120ML","",12.0,0.0,12.0,"NÃO - NORMAL"],["3200025","YAMA CURLY REPAIR AMPOLA NUTRITIVA 18 ML","",24.0,0.0,24.0,"NÃO - NORMAL"],["3200008","YAMA CURLY REPAIR CONDICIONADOR LIMPANTE CO WASH 180ML","",24.0,0.0,24.0,"NÃO - NORMAL"],["3200009","YAMA CURLY REPAIR CREME PARA PENTEAR 250G","",48.0,0.0,48.0,"NÃO - NORMAL"],["3200010","YAMA CURLY REPAIR CREME PARA PENTEAR 900G","",48.0,0.0,48.0,"NÃO - NORMAL"],["3200011","YAMA CURLY REPAIR GELEIA MODELADORA 500ML","",12.0,0.0,12.0,"NÃO - NORMAL"],["3200029","YAMA CURLY REPAIR HIDRATACAO NOTURNA 150 ML","",12.0,0.0,12.0,"NÃO - NORMAL"],["3200015","YAMA CURLY REPAIR KIT SHAMPOO LOW POO + COND. INTENSIVO","",354.0,6.0,348.0,"NÃO - NORMAL"],["3200012","YAMA CURLY REPAIR MASCARA 500G","",30.0,0.0,30.0,"NÃO - NORMAL"],["3200013","YAMA CURLY REPAIR OLEO DE UMECTACAO 100ML","",12.0,0.0,12.0,"NÃO - NORMAL"],["3200014","YAMA CURLY REPAIR SHAMPOO LOW POO 280ML","",36.0,0.0,36.0,"NÃO - NORMAL"],["1600104","YAMA EXPERT COLOR 3D MAX 1.0 PRETO 60G","",48.0,0.0,48.0,"NÃO - NORMAL"],["1600122","YAMA EXPERT COLOR 3D MAX 10.0 LOURO CLARISSIMO 60G","",36.0,0.0,36.0,"NÃO - NORMAL"],["1600123","YAMA EXPERT COLOR 3D MAX 10.32 LOURO CLARISSI DOUR IRISD 60G","",54.0,0.0,54.0,"NÃO - NORMAL"],["1600105","YAMA EXPERT COLOR 3D MAX 3.0 CASTANHO ESCURO 60G","",66.0,0.0,66.0,"NÃO - NORMAL"],["1600106","YAMA EXPERT COLOR 3D MAX 4.0 CASTANHO MEDIO 60G","",48.0,0.0,48.0,"NÃO - NORMAL"],["1600107","YAMA EXPERT COLOR 3D MAX 4.65 CASTANHO AVERM ACAJU 60G","",18.0,0.0,18.0,"NÃO - NORMAL"],["1600108","YAMA EXPERT COLOR 3D MAX 5.0 CASTANHO CLARO 60G","",36.0,0.0,36.0,"NÃO - NORMAL"],["1600109","YAMA EXPERT COLOR 3D MAX 6.0 LOURO ESCURO  60G","",18.0,0.0,18.0,"NÃO - NORMAL"],["1600110","YAMA EXPERT COLOR 3D MAX 7.0 LOURO MEDIO 60G","",90.0,0.0,90.0,"NÃO - NORMAL"],["1600111","YAMA EXPERT COLOR 3D MAX 7.12 LOURO CINZA IRISADO 60G","",24.0,0.0,24.0,"NÃO - NORMAL"],["1600112","YAMA EXPERT COLOR 3D MAX 7.31 LOURO MED DOURAD ACINZ 60G","",24.0,0.0,24.0,"NÃO - NORMAL"],["1600113","YAMA EXPERT COLOR 3D MAX 7.32 LOURO MED DOUR IRISADO 60G","",72.0,0.0,72.0,"NÃO - NORMAL"],["1600114","YAMA EXPERT COLOR 3D MAX 7.53 LOURO MED ACAJU DOURAD 60G","",66.0,0.0,66.0,"NÃO - NORMAL"],["1600115","YAMA EXPERT COLOR 3D MAX 7.66 LOURO MED VERM INTENSO 60G","",36.0,0.0,36.0,"NÃO - NORMAL"],["1600116","YAMA EXPERT COLOR 3D MAX 7.77 LOURO MED MARROM INTEN 60G","",90.0,0.0,90.0,"NÃO - NORMAL"],["1600117","YAMA EXPERT COLOR 3D MAX 8.0 LOURO CLARO 60G","",54.0,0.0,54.0,"NÃO - NORMAL"],["1600118","YAMA EXPERT COLOR 3D MAX 8.12 LOURO CLARO CINZA IRISADO 60G","",24.0,0.0,24.0,"NÃO - NORMAL"],["1600119","YAMA EXPERT COLOR 3D MAX 9.0 LOURO MUITO CLARO 60G","",54.0,0.0,54.0,"NÃO - NORMAL"],["1600120","YAMA EXPERT COLOR 3D MAX 9.03 LOURO MUITO CLARO BEGE 60G","",72.0,0.0,72.0,"NÃO - NORMAL"],["1600121","YAMA EXPERT COLOR 3D MAX 9.11 LOURO MTO CLAR CINZ INTEN 60G","",66.0,0.0,66.0,"NÃO - NORMAL"],["1600082","YAMA EXPERT PROF. COLOR S. AMONIA N. 1.0 PRETO","",456.0,12.0,444.0,"NÃO - NORMAL"],["1600083","YAMA EXPERT PROF. COLOR S. AMONIA N. 1.1 PRETO AZULADO","",324.0,12.0,312.0,"NÃO - NORMAL"],["1600084","YAMA EXPERT PROF. COLOR S. AMONIA N. 3.0 CASTANHO ESCURO","",480.0,12.0,468.0,"NÃO - NORMAL"],["1600085","YAMA EXPERT PROF. COLOR S. AMONIA N. 4.0 CASTANHO","",828.0,12.0,816.0,"NÃO - NORMAL"],["1600086","YAMA EXPERT PROF. COLOR S. AMONIA N. 5.0 CASTANHO CLARO","",264.0,12.0,252.0,"NÃO - NORMAL"],["1600087","YAMA EXPERT PROF. COLOR S. AMONIA N. 5.5 CASTANHO CLR. ACJ.","",30.0,0.0,30.0,"NÃO - NORMAL"],["1600088","YAMA EXPERT PROF. COLOR S. AMONIA N. 5.7 CASTANHO CLR. MARR.","",102.0,0.0,102.0,"NÃO - NORMAL"],["1600089","YAMA EXPERT PROF. COLOR S. AMONIA N. 6.0 LOURO ESCURO","",606.0,18.0,588.0,"NÃO - NORMAL"],["1600090","YAMA EXPERT PROF. COLOR S. AMONIA N. 6.1 LOURO ESC. ACINZ.","",198.0,0.0,198.0,"NÃO - NORMAL"],["1600091","YAMA EXPERT PROF. COLOR S. AMONIA N. 6.3 LOURO ESC. DOUR.","",48.0,0.0,48.0,"NÃO - NORMAL"],["1600092","YAMA EXPERT PROF. COLOR S. AMONIA N. 6.66 LOU. ESC. VM. INT.","",72.0,0.0,72.0,"NÃO - NORMAL"],["1600093","YAMA EXPERT PROF. COLOR S. AMONIA N. 6.7 LOURO ESC. CHOC.","",264.0,0.0,264.0,"NÃO - NORMAL"],["1600094","YAMA EXPERT PROF. COLOR S. AMONIA N. 7.0 LOURO MEDIO","",582.0,12.0,570.0,"NÃO - NORMAL"],["1600095","YAMA EXPERT PROF. COLOR S. AMONIA N. 7.1 LOURO MEDIO ACINZEN","",312.0,0.0,312.0,"NÃO - NORMAL"],["1600096","YAMA EXPERT PROF. COLOR S. AMONIA N. 7.3 LOURO MEDIO DOURADO","",222.0,0.0,222.0,"NÃO - NORMAL"],["1600097","YAMA EXPERT PROF. COLOR S. AMONIA N. 7.7 LOURO MEDIO MARROM","",210.0,0.0,210.0,"NÃO - NORMAL"],["1600098","YAMA EXPERT PROF. COLOR S. AMONIA N. 8.0 LOURO CLARO","",174.0,12.0,162.0,"NÃO - NORMAL"],["1600099","YAMA EXPERT PROF. COLOR S. AMONIA N. 8.4 LOURO CLARO ACOBR.","",84.0,0.0,84.0,"NÃO - NORMAL"],["1600100","YAMA EXPERT PROF. COLOR S. AMONIA N. 9.0 LOURO MT CLARO","",114.0,12.0,102.0,"NÃO - NORMAL"],["1600101","YAMA EXPERT PROF. COLOR S. AMONIA N. 9.1 LOURO MT CL. ACINZ.","",180.0,0.0,180.0,"NÃO - NORMAL"],["102901001","YAMA FIX GEL FIXADOR AÇO 300G","",1896.0,72.0,1824.0,"NÃO - NORMAL"],["102901002","YAMA FIX GEL FIXADOR COLA 300G","",3264.0,48.0,3216.0,"NÃO - NORMAL"],["102901003","YAMA FIX GEL FIXADOR PEDRA 300G","",1740.0,72.0,1668.0,"NÃO - NORMAL"],["3200038","YAMA GLYCOLIC REPAIR CONDICIONADOR 200ML","",144.0,0.0,144.0,"NÃO - NORMAL"],["3200039","YAMA GLYCOLIC REPAIR MASCARA ANTIPOROSIDADE 250G","",384.0,0.0,384.0,"NÃO - NORMAL"],["3200040","YAMA GLYCOLIC REPAIR SERUM FINALIZADOR 60ML","",264.0,0.0,264.0,"NÃO - NORMAL"],["103170001","YAMA HAIR FOOD KIT SHAMPOO + CONDICIONADOR AVOCADO","",342.0,0.0,342.0,"NÃO - NORMAL"],["103170002","YAMA HAIR FOOD KIT SHAMPOO + CONDICIONADOR COCONUT","",30.0,0.0,30.0,"NÃO - NORMAL"],["103113003","YAMA HAIR FOOD MASCARA CONDICIONADORA PAPAYA 250G","",96.0,0.0,96.0,"NÃO - NORMAL"],["103113006","YAMA HAIR FOOD OLEO AVOCADO 30ML","",84.0,0.0,84.0,"NÃO - NORMAL"],["103113007","YAMA HAIR FOOD OLEO COCONUT 30ML","",72.0,0.0,72.0,"NÃO - NORMAL"],["103111001","YAMA HAIR FOOD SHAMPOO AVOCADO 280ML","",144.0,0.0,144.0,"NÃO - NORMAL"],["103111002","YAMA HAIR FOOD SHAMPOO COCONUT 280ML","",144.0,0.0,144.0,"NÃO - NORMAL"],["3200026","YAMA LISS REPAIR AMPOLA HIDRATANTE 18 ML","",48.0,0.0,48.0,"NÃO - NORMAL"],["103070001","YAMA LISS REPAIR KIT SHAMPOO + CONDICIONADOR","",744.0,6.0,738.0,"NÃO - NORMAL"],["103013001","YAMA LISS REPAIR MASCARA RECONSTRUTORA 180G","",186.0,18.0,168.0,"NÃO - NORMAL"],["103013003","YAMA LISS REPAIR SERUM FINALIZADOR 30ML","",108.0,0.0,108.0,"NÃO - NORMAL"],["103011001","YAMA LISS REPAIR SHAMPOO 280ML","",60.0,0.0,60.0,"NÃO - NORMAL"],["3200027","YAMA LONG REPAIR AMPOLA FORTALECEDORA 18 ML","",24.0,0.0,24.0,"NÃO - NORMAL"],["3200016","YAMA LONG REPAIR CONDICIONADOR FORTALECEDOR 200ML","",36.0,0.0,36.0,"NÃO - NORMAL"],["3200020","YAMA LONG REPAIR KIT SHAMPOO + CONDICIONADOR FORTALECEDOR","",552.0,18.0,534.0,"NÃO - NORMAL"],["3200017","YAMA LONG REPAIR MASCARA FORTALECEDORA 180G","",90.0,0.0,90.0,"NÃO - NORMAL"],["3200018","YAMA LONG REPAIR SHAMPOO FORTALECEDOR 280ML","",24.0,0.0,24.0,"NÃO - NORMAL"],["3200019","YAMA LONG REPAIR SPRAY LEAVE-IN FORTALECEDOR 120ML","",24.0,12.0,12.0,"NÃO - NORMAL"],["3200042","YAMA SCALP REPAIR CONDICIONADOR 200 ML","",252.0,0.0,252.0,"NÃO - NORMAL"],["3200043","YAMA SCALP REPAIR HIGIENIZADOR DE COURO CABELUDO 100 ML","",192.0,0.0,192.0,"NÃO - NORMAL"],["3200044","YAMA SCALP REPAIR SHAMPOO 280 ML","",24.0,0.0,24.0,"NÃO - NORMAL"],["3200045","YAMA SCALP REPAIR SHAMPOO ESFOLIANTE 150 ML","",138.0,0.0,138.0,"NÃO - NORMAL"],["1300005","YAMASTEROL ARGAN 200ML","",10056.0,192.0,9864.0,"NÃO - NORMAL"],["1300012","YAMASTEROL ARGAN 320ML","",3300.0,252.0,3048.0,"NÃO - NORMAL"],["1300019","YAMASTEROL ARGAN 900ML","",834.0,24.0,810.0,"NÃO - NORMAL"],["1300006","YAMASTEROL BABOSA 200ML","",9780.0,300.0,9480.0,"NÃO - NORMAL"],["1300013","YAMASTEROL BABOSA 320ML","",7608.0,540.0,7068.0,"NÃO - NORMAL"],["1300020","YAMASTEROL BABOSA 900ML","",78.0,54.0,24.0,"NÃO - NORMAL"],["1300001","YAMASTEROL BABOSA 90ML","",3276.0,408.0,2868.0,"NÃO - NORMAL"],["1300007","YAMASTEROL BRANCO 200ML","",2532.0,36.0,2496.0,"NÃO - NORMAL"],["1300014","YAMASTEROL BRANCO 320ML","",552.0,180.0,372.0,"NÃO - NORMAL"],["1300021","YAMASTEROL BRANCO 900ML","",552.0,18.0,534.0,"NÃO - NORMAL"],["1300003","YAMASTEROL BRANCO 90ML","",2568.0,120.0,2448.0,"NÃO - NORMAL"],["1300015","YAMASTEROL COLAGENO VEGETAL 320ML","",1272.0,24.0,1248.0,"NÃO - NORMAL"],["1300016","YAMASTEROL HIALURONICO 320ML","",48.0,24.0,24.0,"NÃO - NORMAL"],["1300010","YAMASTEROL QUERATINA 200ML","",2016.0,12.0,2004.0,"NÃO - NORMAL"],["1300018","YAMASTEROL QUERATINA 320ML","",636.0,72.0,564.0,"NÃO - NORMAL"],["1300022","YAMASTEROL QUERATINA 900ML","",168.0,18.0,150.0,"NÃO - NORMAL"]],"t":[["101070002","YAMA BEAUTY KIT CLAREADOR GERME DE TRIGO","03",12.0,0.0,"2617520"],["102901001","YAMA FIX GEL FIXADOR AÇO 300G","03",1824.0,0.0,"2614958"],["102901002","YAMA FIX GEL FIXADOR COLA 300G","03",1296.0,0.0,"2614210"],["102901002","YAMA FIX GEL FIXADOR COLA 300G","03",1920.0,0.0,"2614314"],["102901003","YAMA FIX GEL FIXADOR PEDRA 300G","03",1188.0,0.0,"2614751"],["102901003","YAMA FIX GEL FIXADOR PEDRA 300G","03",480.0,0.0,"2615839"],["103011001","YAMA LISS REPAIR SHAMPOO 280ML","03",24.0,0.0,"2529702"],["103011001","YAMA LISS REPAIR SHAMPOO 280ML","03",36.0,0.0,"2603078"],["103013001","YAMA LISS REPAIR MASCARA RECONSTRUTORA 180G","03",168.0,0.0,"2606415"],["103013003","YAMA LISS REPAIR SERUM FINALIZADOR 30ML","03",108.0,0.0,"2609738"],["103070001","YAMA LISS REPAIR KIT SHAMPOO + CONDICIONADOR","03",738.0,0.0,"2612340"],["103113006","YAMA HAIR FOOD OLEO AVOCADO 30ML","03",84.0,0.0,"2419597"],["103113007","YAMA HAIR FOOD OLEO COCONUT 30ML","03",72.0,0.0,"2428758"],["1100001","PO DESC. AMETISTA 10G","03",924.0,0.0,"2608389"],["1100001","PO DESC. AMETISTA 10G","03",8292.0,0.0,"2611208"],["1100002","PO DESC. CAMOMILA 10G","03",9504.0,0.0,"2608611"],["1100003","PO DESC. PROTEINAS DO LEITE 10G","03",2592.0,0.0,"2609495"],["1100004","PO DESC. QUERATINA 10G","03",7104.0,0.0,"2609496"],["1100005","PO DESC. TRADIC. ACT. 10G","03",5184.0,0.0,"2611140"],["1100006","PO DESC. AMETISTA 20G","03",7440.0,0.0,"2614646"],["1100006","PO DESC. AMETISTA 20G","03",456.0,0.0,"2620184"],["1100009","PO DESC. ERVAS DUST FREE 20G","03",432.0,0.0,"2617225"],["1100010","PO DESC. GERME DE TRIGO 20G","03",504.0,0.0,"2613236"],["1100010","PO DESC. GERME DE TRIGO 20G","03",312.0,0.0,"2619262"],["1100011","PO DESC. PEROLADO 20G","03",1248.0,0.0,"2615528"],["1100012","PO DESC. PLATINADO 20G","03",3264.0,0.0,"2615123"],["1100013","PO DESC. PROTEINAS DO LEITE 20G","03",1800.0,0.0,"2617887"],["1100015","PO DESC. TRADIC. ACT. 20G","03",1872.0,0.0,"2620273"],["1100016","PO DESC. AMETISTA 50G","03",1080.0,0.0,"2620563"],["1100020","PO DESC. ERVAS DUST FREE 50G","03",288.0,0.0,"2619031"],["1100022","PO DESC. PEROLADO 50G","03",216.0,0.0,"2620924"],["1100025","PO DESC. QUERATINA 50G","03",1008.0,0.0,"2618143"],["1100026","PO DESC. TRADIC. ACT. 50G","03",2448.0,0.0,"2616020"],["1100026","PO DESC. TRADIC. ACT. 50G","03",72.0,0.0,"2620730"],["1100027","PO DESC. AMETISTA REFIL 300G","03",12.0,12.0,"2613038"],["1100027","PO DESC. AMETISTA REFIL 300G","03",378.0,0.0,"2613053"],["1100027","PO DESC. AMETISTA REFIL 300G","03",2238.0,0.0,"2613921"],["1100027","PO DESC. AMETISTA REFIL 300G","03",1590.0,0.0,"2613927"],["1100027","PO DESC. AMETISTA REFIL 300G","03",1572.0,0.0,"2613928"],["1100027","PO DESC. AMETISTA REFIL 300G","03",1590.0,0.0,"2613929"],["1100027","PO DESC. AMETISTA REFIL 300G","03",1584.0,0.0,"2613930"],["1100027","PO DESC. AMETISTA REFIL 300G","03",1626.0,0.0,"2614046"],["1100027","PO DESC. AMETISTA REFIL 300G","03",1464.0,0.0,"2614047"],["1100030","PO DESC. CAMOMILA REFIL 300G","03",6.0,0.0,"2616227"],["1100030","PO DESC. CAMOMILA REFIL 300G","03",468.0,0.0,"2618360"],["1100030","PO DESC. CAMOMILA REFIL 300G","03",102.0,0.0,"2619336"],["1100030","PO DESC. CAMOMILA REFIL 300G","03",114.0,0.0,"2620456"],["1100031","PO DESC. ERVAS DUST FREE REFIL 300G","03",150.0,0.0,"2618779"],["1100032","PO DESC. GERME DE TRIGO REFIL 300G","03",42.0,0.0,"2617351"],["1100032","PO DESC. GERME DE TRIGO REFIL 300G","03",54.0,0.0,"2617600"],["1100032","PO DESC. GERME DE TRIGO REFIL 300G","03",60.0,0.0,"2620445"],["1100033","PO DESC. PEROLADO REFIL 300G","03",432.0,0.0,"2613742"],["1100033","PO DESC. PEROLADO REFIL 300G","03",1944.0,0.0,"2615287"],["1100034","PO DESC. PLATINADO REFIL 300G","03",846.0,0.0,"2615391"],["1100034","PO DESC. PLATINADO REFIL 300G","03",1236.0,0.0,"2615392"],["1100034","PO DESC. PLATINADO REFIL 300G","03",48.0,0.0,"2620630"],["1100036","PO DESC. QUERATINA REFIL 300G","03",12.0,0.0,"2618142"],["1100036","PO DESC. QUERATINA REFIL 300G","03",492.0,0.0,"2621091"],["1100037","PO DESC. TRADIC. ACT. REFIL 300G","03",762.0,0.0,"2615618"],["1100037","PO DESC. TRADIC. ACT. REFIL 300G","03",1746.0,0.0,"2616145"],["1100037","PO DESC. TRADIC. ACT. REFIL 300G","03",162.0,0.0,"2620308"],["1100042","PO DESC. ACIDO HIALURONICO 20G","03",336.0,0.0,"2616488"],["1100042","PO DESC. ACIDO HIALURONICO 20G","03",576.0,0.0,"2619217"],["1100043","PO DESC. ACIDO HIALURONICO 50G","03",408.0,0.0,"2618151"],["1100044","PO DESC. ACIDO HIALURONICO REFIL 300G","03",210.0,0.0,"2613428"],["1100044","PO DESC. ACIDO HIALURONICO REFIL 300G","03",30.0,0.0,"2616488"],["1100045","PO DESC. AMETISTA 750 G","03",348.0,0.0,"2616608"],["1100047","PO DESC. BLACK CARBON 20 G","03",288.0,0.0,"2615526"],["1100047","PO DESC. BLACK CARBON 20 G","03",384.0,0.0,"2618876"],["1100048","PO DESC. BLACK CARBON 50 G","03",168.0,0.0,"2618875"],["1100050","CONJ. PO DESC ACIDO HIALURONICO 20G + OX 40 VOL 60ML","03",144.0,0.0,"2617022"],["1100050","CONJ. PO DESC ACIDO HIALURONICO 20G + OX 40 VOL 60ML","03",48.0,0.0,"2618348"],["1100051","CONJ. PO DESC CAMOMILA 20G + OX 40 VOL 60ML","03",888.0,0.0,"2614760"],["1100051","CONJ. PO DESC CAMOMILA 20G + OX 40 VOL 60ML","03",600.0,0.0,"2616097"],["1100057","MOARA PO DESC. QUERATINA 20G","03",96.0,0.0,"2507070"],["1100057","MOARA PO DESC. QUERATINA 20G","03",528.0,0.0,"2507591"],["1300001","YAMASTEROL BABOSA 90ML","03",2448.0,0.0,"2618877"],["1300001","YAMASTEROL BABOSA 90ML","03",408.0,0.0,"2618974"],["1300003","YAMASTEROL BRANCO 90ML","03",2412.0,0.0,"2618469"],["1300005","YAMASTEROL ARGAN 200ML","03",6696.0,0.0,"2614164"],["1300005","YAMASTEROL ARGAN 200ML","03",3192.0,0.0,"2616273"],["1300006","YAMASTEROL BABOSA 200ML","03",1236.0,0.0,"2617608"],["1300006","YAMASTEROL BABOSA 200ML","03",3372.0,0.0,"2618880"],["1300006","YAMASTEROL BABOSA 200ML","03",24.0,0.0,"2618881"],["1300006","YAMASTEROL BABOSA 200ML","03",4800.0,0.0,"2619330"],["1300007","YAMASTEROL BRANCO 200ML","03",1884.0,0.0,"2614960"],["1300007","YAMASTEROL BRANCO 200ML","03",576.0,0.0,"2620475"],["1300010","YAMASTEROL QUERATINA 200ML","03",1980.0,0.0,"2613544"],["1300010","YAMASTEROL QUERATINA 200ML","03",36.0,0.0,"2618669"],["1300012","YAMASTEROL ARGAN 320ML","03",2664.0,0.0,"2615848"],["1300012","YAMASTEROL ARGAN 320ML","03",372.0,0.0,"2618784"],["1300012","YAMASTEROL ARGAN 320ML","03",84.0,0.0,"2618971"],["1300013","YAMASTEROL BABOSA 320ML","03",468.0,0.0,"2618975"],["1300013","YAMASTEROL BABOSA 320ML","03",48.0,0.0,"2619328"],["1300013","YAMASTEROL BABOSA 320ML","03",252.0,0.0,"2620034"],["1300013","YAMASTEROL BABOSA 320ML","03",6096.0,0.0,"2620035"],["1300013","YAMASTEROL BABOSA 320ML","03",120.0,0.0,"2620038"],["1300014","YAMASTEROL BRANCO 320ML","03",372.0,0.0,"2618884"],["1300015","YAMASTEROL COLAGENO VEGETAL 320ML","03",1248.0,0.0,"2613357"],["1300018","YAMASTEROL QUERATINA 320ML","03",132.0,0.0,"2612879"],["1300018","YAMASTEROL QUERATINA 320ML","03",192.0,0.0,"2617565"],["1300019","YAMASTEROL ARGAN 900ML","03",546.0,0.0,"2614753"],["1300019","YAMASTEROL ARGAN 900ML","03",138.0,0.0,"2615463"],["1300019","YAMASTEROL ARGAN 900ML","03",84.0,0.0,"2619972"],["1300021","YAMASTEROL BRANCO 900ML","03",534.0,0.0,"2617245"],["1300022","YAMASTEROL QUERATINA 900ML","03",156.0,0.0,"2614755"],["1300023","KIT YAMASTEROL BABOSA 200ML ARGAN 200ML BRANCO 200ML","03",1992.0,0.0,"2615747"],["1300025","KIT YAMASTEROL BABOSA 200ML HIALURONICO 200ML COLAGENO 200ML","03",354.0,0.0,"2616456"],["1300027","KIT YAMASTEROL ARGAN SHAMPOO E MULTIFUNCIONAL 320ML","03",1218.0,0.0,"2615749"],["1300028","KIT YAMASTEROL BABOSA SHAMPOO E MULTIFUNCIONAL 320ML","03",636.0,0.0,"2617410"],["1300029","KIT YAMASTEROL HIALURONICO SHAMPOO E MULTIFUNCIONAL 320ML","03",822.0,0.0,"2612644"],["1300030","KIT YAMASTEROL PROT. HIDROLISADA SHAMPOO E MULTIFUNC. 320ML","03",486.0,0.0,"2515924N"],["1600001","MINI KIT FASHION COLOR 1.0 PRETO","03",156.0,0.0,"2613977"],["1600001","MINI KIT FASHION COLOR 1.0 PRETO","03",90.0,0.0,"2620116"],["1600002","MINI KIT FASHION COLOR 1.1 PRETO AZULADO","03",1020.0,0.0,"2613057"],["1600003","MINI KIT FASHION COLOR 3.0 CASTANHO ESCURO","03",270.0,0.0,"2613707"],["1600003","MINI KIT FASHION COLOR 3.0 CASTANHO ESCURO","03",1302.0,0.0,"2613985"],["1600004","MINI KIT FASHION COLOR 4.0 CASTANHO MEDIO","03",1920.0,0.0,"2614142"],["1600005","MINI KIT FASHION COLOR 4.66 CASTANHO MEDIO VERM. INTENSO","03",264.0,0.0,"2616218"],["1600005","MINI KIT FASHION COLOR 4.66 CASTANHO MEDIO VERM. INTENSO","03",18.0,0.0,"2620444"],["1600006","MINI KIT FASHION COLOR 4.7 CASTANHO MEDIO MARROM","03",252.0,0.0,"2615596"],["1600006","MINI KIT FASHION COLOR 4.7 CASTANHO MEDIO MARROM","03",18.0,0.0,"2620555"],["1600007","MINI KIT FASHION COLOR 5.0 CASTANHO CLARO","03",552.0,0.0,"2614430"],["1600007","MINI KIT FASHION COLOR 5.0 CASTANHO CLARO","03",54.0,0.0,"2621349"],["1600008","MINI KIT FASHION COLOR 5.1 CASTANHO CLARO ACINZ.","03",6.0,0.0,"2620932"],["1600009","MINI KIT FASHION COLOR 5.26 CASTANHO CLARO IRIS. VERM. MARS.","03",396.0,0.0,"2613747"],["1600009","MINI KIT FASHION COLOR 5.26 CASTANHO CLARO IRIS. VERM. MARS.","03",600.0,0.0,"2615394"],["1600010","MINI KIT FASHION COLOR 6.0 LOURO ESCURO","03",60.0,0.0,"2619534"],["1600010","MINI KIT FASHION COLOR 6.0 LOURO ESCURO","03",426.0,0.0,"2620016"],["1600011","MINI KIT FASHION COLOR 6.1 LOURO ESCURO ACINZ.","03",816.0,0.0,"2613978"],["1600012","MINI KIT FASHION COLOR 6.26 LOURO ESCURO IRIS. VERM. MARS.","03",168.0,0.0,"2613708"],["1600012","MINI KIT FASHION COLOR 6.26 LOURO ESCURO IRIS. VERM. MARS.","03",384.0,0.0,"2613709"],["1600012","MINI KIT FASHION COLOR 6.26 LOURO ESCURO IRIS. VERM. MARS.","03",960.0,0.0,"2615694"],["1600013","MINI KIT FASHION COLOR 6.31 LOURO ESCURO DOURADO ACINZ.","03",72.0,0.0,"2616798"],["1600015","MINI KIT FASHION COLOR 6.66 LOURO ESCURO VERM. INTENSO","03",1488.0,0.0,"2615275"],["1600016","MINI KIT FASHION COLOR 6.7 LOURO ESCURO MARROM","03",2730.0,0.0,"2614140"],["1600017","MINI KIT FASHION COLOR 7.0 LOURO MEDIO","03",486.0,0.0,"2613234"],["1600017","MINI KIT FASHION COLOR 7.0 LOURO MEDIO","03",342.0,0.0,"2620122"],["1600018","MINI KIT FASHION COLOR 7.1 LOURO MEDIO ACINZ.","03",1530.0,0.0,"2615272"],["1600018","MINI KIT FASHION COLOR 7.1 LOURO MEDIO ACINZ.","03",1482.0,0.0,"2615274"],["1600019","MINI KIT FASHION COLOR 8.0 LOURO CLARO","03",1026.0,0.0,"2614807"],["1600019","MINI KIT FASHION COLOR 8.0 LOURO CLARO","03",24.0,0.0,"2619122"],["1600020","MINI KIT FASHION COLOR 8.1 LOURO CLARO ACINZ.","03",108.0,0.0,"2615792"],["1600020","MINI KIT FASHION COLOR 8.1 LOURO CLARO ACINZ.","03",138.0,0.0,"2620443"],["1600021","MINI KIT FASHION COLOR 8.31 LOURO CLARO DOURADO ACINZ.","03",174.0,0.0,"2613943"],["1600021","MINI KIT FASHION COLOR 8.31 LOURO CLARO DOURADO ACINZ.","03",600.0,0.0,"2616493"],["1600022","MINI KIT FASHION COLOR 8.4 LOURO CLARO ACOBREADO","03",150.0,0.0,"2614152"],["1600022","MINI KIT FASHION COLOR 8.4 LOURO CLARO ACOBREADO","03",390.0,0.0,"2615141"],["1600023","MINI KIT FASHION COLOR 8.66 LOURO CLARO VERM. INTENSO","03",906.0,0.0,"2613965"],["1600023","MINI KIT FASHION COLOR 8.66 LOURO CLARO VERM. INTENSO","03",960.0,0.0,"2615863"],["1600024","MINI KIT FASHION COLOR 8.89 LOURO CLARO PEROLA","03",144.0,0.0,"2611594"],["1600024","MINI KIT FASHION COLOR 8.89 LOURO CLARO PEROLA","03",960.0,0.0,"2615862"],["1600025","MINI KIT FASHION COLOR 9.0 LOURO MUITO CLARO","03",192.0,0.0,"2613585"],["1600025","MINI KIT FASHION COLOR 9.0 LOURO MUITO CLARO","03",324.0,0.0,"2613586"],["1600025","MINI KIT FASHION COLOR 9.0 LOURO MUITO CLARO","03",810.0,0.0,"2615861"],["1600026","MINI KIT FASHION COLOR 9.1 LOURO MUITO CLARO ACINZ.","03",462.0,0.0,"2614941"],["1600026","MINI KIT FASHION COLOR 9.1 LOURO MUITO CLARO ACINZ.","03",600.0,0.0,"2616496"],["1600027","MINI KIT FASHION COLOR 9.13 LOURO MUITO CLARO ACINZ. DOURADO","03",546.0,0.0,"2616495"],["1600028","MINI KIT FASHION COLOR 9.89 LOURO MUITO CLARO PEROLA","03",288.0,0.0,"2613939"],["1600028","MINI KIT FASHION COLOR 9.89 LOURO MUITO CLARO PEROLA","03",54.0,0.0,"2621245"],["1600029","MINI KIT FASHION COLOR 10.0 LOURO CLARISSIMO","03",420.0,0.0,"2613940"],["1600030","MINI KIT FASHION COLOR 10.1 LOURO CLARISSIMO ACINZ.","03",378.0,0.0,"2614725"],["1600030","MINI KIT FASHION COLOR 10.1 LOURO CLARISSIMO ACINZ.","03",1800.0,0.0,"2615790"],["1600031","NANO INF. 1.0 PRETO COLOR.","03",912.0,0.0,"2613691"],["1600032","NANO INF. 1.1 PRETO AZULADO COLOR.","03",60.0,0.0,"2610498"],["1600032","NANO INF. 1.1 PRETO AZULADO COLOR.","03",600.0,0.0,"2615698"],["1600033","NANO INF. 3.0 CASTANHO ESCURO COLOR.","03",162.0,0.0,"2615058"],["1600033","NANO INF. 3.0 CASTANHO ESCURO COLOR.","03",546.0,0.0,"2616029"],["1600034","NANO INF. 4.0 CASTANHO MEDIO COLOR.","03",654.0,0.0,"2611299"],["1600034","NANO INF. 4.0 CASTANHO MEDIO COLOR.","03",570.0,0.0,"2615793"],["1600034","NANO INF. 4.0 CASTANHO MEDIO COLOR.","03",90.0,0.0,"2615794"],["1600035","NANO INF. 5.0 CASTANHO CLARO COLOR.","03",348.0,0.0,"2613578"],["1600035","NANO INF. 5.0 CASTANHO CLARO COLOR.","03",600.0,0.0,"2616366"],["1600036","NANO INF. 5.1 CASTANHO CLARO ACINZENTADO COLOR.","03",294.0,0.0,"2608718"],["1600037","NANO INF. 5.17 CASTANHO CLARO ACINZENTADO MARROM COLOR.","03",72.0,0.0,"2607459"],["1600037","NANO INF. 5.17 CASTANHO CLARO ACINZENTADO MARROM COLOR.","03",12.0,0.0,"2620633"],["1600038","NANO INF. 6.0 LOURO ESCURO COLOR.","03",762.0,0.0,"2615393"],["1600038","NANO INF. 6.0 LOURO ESCURO COLOR.","03",24.0,0.0,"2620746"],["1600039","NANO INF. 6.1 LOURO ESCURO ACINZENTADO COLOR.","03",558.0,0.0,"2609746"],["1600039","NANO INF. 6.1 LOURO ESCURO ACINZENTADO COLOR.","03",180.0,0.0,"2616030"],["1600040","NANO INF. 6.17 LOURO ESCURO ACINZENTADO MARROM COLOR.","03",42.0,0.0,"2619444"],["1600041","NANO INF. 6.3 LOURO ESCURO DOURADO COLOR.","03",198.0,0.0,"2523306"],["1600042","NANO INF. 6.66 LOURO ESCURO VERMELHO INTENSO COLOR.","03",372.0,0.0,"2615396"],["1600043","NANO INF. 6.7 LOURO ESCURO MARROM COLOR.","03",90.0,0.0,"2611786"],["1600043","NANO INF. 6.7 LOURO ESCURO MARROM COLOR.","03",300.0,0.0,"2615059"],["1600043","NANO INF. 6.7 LOURO ESCURO MARROM COLOR.","03",960.0,0.0,"2616220"],["1600044","NANO INF. 7.0 LOURO MEDIO COLOR.","03",996.0,0.0,"2613690"],["1600045","NANO INF. 7.1 LOURO MEDIO ACINZENTADO COLOR.","03",1014.0,0.0,"2613774"],["1600046","NANO INF. 7.12 LOURO MEDIO ACINZ. IRISADO COLOR.","03",72.0,0.0,"2602060K"],["1600046","NANO INF. 7.12 LOURO MEDIO ACINZ. IRISADO COLOR.","03",60.0,0.0,"2616662"],["1600047","NANO INF. 7.17 LOURO MEDIO ACINZENTADO MARROM COLOR.","03",114.0,0.0,"2616663"],["1600047","NANO INF. 7.17 LOURO MEDIO ACINZENTADO MARROM COLOR.","03",12.0,0.0,"2621355"],["1600048","NANO INF. 7.31 LOURO MEDIO DOURADO ACINZENTADO COLOR.","03",198.0,0.0,"2613751"],["1600048","NANO INF. 7.31 LOURO MEDIO DOURADO ACINZENTADO COLOR.","03",150.0,0.0,"2615867"],["1600049","NANO INF. 7.4 LOURO MEDIO ACOBREADO COLOR.","03",1254.0,0.0,"2613937"],["1600050","NANO INF. 7.7 LOURO MEDIO MARROM COLOR.","03",666.0,0.0,"2612060"],["1600050","NANO INF. 7.7 LOURO MEDIO MARROM COLOR.","03",150.0,0.0,"2615795"],["1600051","NANO INF. 8.0 LOURO CLARO COLOR.","03",504.0,0.0,"2610819"],["1600052","NANO INF. 8.1 LOURO CLARO ACINZENTADO COLOR.","03",654.0,0.0,"2609550"],["1600052","NANO INF. 8.1 LOURO CLARO ACINZENTADO COLOR.","03",240.0,0.0,"2610631"],["1600053","NANO INF. 8.12 LOURO CLARO ACINZ. IRISADO COLOR.","03",90.0,0.0,"2612062"],["1600053","NANO INF. 8.12 LOURO CLARO ACINZ. IRISADO COLOR.","03",120.0,0.0,"2616372"],["1600054","NANO INF. 8.26 LOURO CLARO IRISADO AVERM. MARSALA COLOR.","03",78.0,0.0,"2610630"],["1600054","NANO INF. 8.26 LOURO CLARO IRISADO AVERM. MARSALA COLOR.","03",600.0,0.0,"2615595"],["1600055","NANO INF. 8.3 LOURO CLARO DOURADO COLOR.","03",426.0,0.0,"2609749"],["1600055","NANO INF. 8.3 LOURO CLARO DOURADO COLOR.","03",180.0,0.0,"2615866"],["1600056","NANO INF. 8.31 LOURO CLARO DOURADO ACINZENTADO COLOR.","03",114.0,0.0,"2613748"],["1600056","NANO INF. 8.31 LOURO CLARO DOURADO ACINZENTADO COLOR.","03",240.0,0.0,"2616367"],["1600057","NANO INF. 8.34 LOURO CLARO DOURADO ACOBREADO COLOR.","03",192.0,0.0,"2606106"],["1600058","NANO INF. 8.4 LOURO CLARO ACOBREADO COLOR.","03",882.0,0.0,"2613941"],["1600058","NANO INF. 8.4 LOURO CLARO ACOBREADO COLOR.","03",180.0,0.0,"2616219"],["1600059","NANO INF. 8.66 LOURO CLARO VERMELHO INTENSO COLOR.","03",348.0,0.0,"2609551"],["1600060","NANO INF. 8.7 LOURO CLARO MARROM COLOR.","03",240.0,0.0,"2609552"],["1600061","NANO INF. 9.0 LOURO MUITO CLARO COLOR.","03",150.0,0.0,"2609647"],["1600061","NANO INF. 9.0 LOURO MUITO CLARO COLOR.","03",150.0,0.0,"2616368"],["1600062","NANO INF. 9.1 LOURO MUITO CLARO ACINZENTADO COLOR.","03",24.0,0.0,"2614665"],["1600063","NANO INF. 9.12 LOURO MUITO CLARO ACINZ. IRISADO COLOR.","03",222.0,0.0,"2606664"],["1600065","NANO INF. 9.26 LOURO MUITO CLARO IRIS.AVERM.MARSALA COLOR.","03",78.0,0.0,"2606981"],["1600066","NANO INF. 9.34 LOURO MUITO CLARO DOURADO ACOBREADO COLOR.","03",60.0,0.0,"2613750"],["1600067","NANO INF.10.0 LOURO CLARISSIMO COLOR.","03",408.0,0.0,"2615594"],["1600068","NANO INF.10.1 LOURO CLARISSIMO ACINZENTADO  COLOR.","03",138.0,0.0,"2613752"],["1600068","NANO INF.10.1 LOURO CLARISSIMO ACINZENTADO  COLOR.","03",150.0,0.0,"2615796"],["1600069","NANO INF.10.13 LOURO CLARISSIMO ACINZ.DOURADO COLOR.","03",12.0,0.0,"2613580"],["1600070","NANO INF.12.11 LOURO EXTRA CLARO CINZA INTENSO COLOR.","03",216.0,0.0,"2610499"],["1600070","NANO INF.12.11 LOURO EXTRA CLARO CINZA INTENSO COLOR.","03",222.0,0.0,"2610822"],["1600070","NANO INF.12.11 LOURO EXTRA CLARO CINZA INTENSO COLOR.","03",150.0,0.0,"2616369"],["1600071","NANO INF.12.12 LOURO EXTRA CLARO ACINZ. IRISADO COLOR.","03",102.0,0.0,"2606947"],["1600072","NANO INF. SEM AMONIA 8.89 LOURO CLARO PEROLA COLOR.","03",414.0,0.0,"2609821"],["1600073","NANO INF. SEM AMONIA 9.89 LOURO MUITO CLARO PEROLADO COLOR.","03",60.0,0.0,"2609822"],["1600073","NANO INF. SEM AMONIA 9.89 LOURO MUITO CLARO PEROLADO COLOR.","03",300.0,0.0,"2616497"],["1600074","NANO INF.SEM AMONIA 10.89 LOURO CLARISSIMO PEROLA COLOR.","03",90.0,0.0,"2613449"],["1600074","NANO INF.SEM AMONIA 10.89 LOURO CLARISSIMO PEROLA COLOR.","03",240.0,0.0,"2616033"],["1600075","NANO INF. SEM AMONIA 12.89 LOURO EXTRA CLARO PEROLA COLOR.","03",390.0,0.0,"2615056"],["1600076","NANO INF. SEM AMONIA 011 MIX AZUL COLOR","03",306.0,0.0,"2616221"],["1600076","NANO INF. SEM AMONIA 011 MIX AZUL COLOR","03",48.0,0.0,"2620635"],["1600077","NANO INF. SEM AMONIA 022 MIX VIOLETA COLOR.","03",222.0,0.0,"2615395"],["1600079","NANO INF. SEM AMONIA 066 MIX VERMELHO COLOR.","03",54.0,0.0,"2606978"],["1600080","NANO INF. SEM AMONIA 088 MIX VERDE COLOR.","03",102.0,0.0,"2620636"],["1600081","NANO INF. SEM AMONIA 0.33 MIX AMARELO COLOR","03",342.0,0.0,"2607715"],["1600082","YAMA EXPERT PROF. COLOR S. AMONIA N. 1.0 PRETO","03",264.0,0.0,"2607839"],["1600082","YAMA EXPERT PROF. COLOR S. AMONIA N. 1.0 PRETO","03",180.0,0.0,"2615699"],["1600083","YAMA EXPERT PROF. COLOR S. AMONIA N. 1.1 PRETO AZULADO","03",54.0,0.0,"2604523"],["1600083","YAMA EXPERT PROF. COLOR S. AMONIA N. 1.1 PRETO AZULADO","03",258.0,0.0,"2612444"],["1600084","YAMA EXPERT PROF. COLOR S. AMONIA N. 3.0 CASTANHO ESCURO","03",276.0,0.0,"2607302"],["1600084","YAMA EXPERT PROF. COLOR S. AMONIA N. 3.0 CASTANHO ESCURO","03",192.0,0.0,"2616226"],["1600085","YAMA EXPERT PROF. COLOR S. AMONIA N. 4.0 CASTANHO","03",336.0,0.0,"2612445"],["1600085","YAMA EXPERT PROF. COLOR S. AMONIA N. 4.0 CASTANHO","03",480.0,0.0,"2615700"],["1600086","YAMA EXPERT PROF. COLOR S. AMONIA N. 5.0 CASTANHO CLARO","03",252.0,0.0,"2608880"],["1600087","YAMA EXPERT PROF. COLOR S. AMONIA N. 5.5 CASTANHO CLR. ACJ.","03",30.0,0.0,"2503115K"],["1600088","YAMA EXPERT PROF. COLOR S. AMONIA N. 5.7 CASTANHO CLR. MARR.","03",102.0,0.0,"2604339"],["1600089","YAMA EXPERT PROF. COLOR S. AMONIA N. 6.0 LOURO ESCURO","03",348.0,0.0,"2608881"],["1600089","YAMA EXPERT PROF. COLOR S. AMONIA N. 6.0 LOURO ESCURO","03",240.0,0.0,"2616223"],["1600090","YAMA EXPERT PROF. COLOR S. AMONIA N. 6.1 LOURO ESC. ACINZ.","03",198.0,0.0,"2607125"],["1600091","YAMA EXPERT PROF. COLOR S. AMONIA N. 6.3 LOURO ESC. DOUR.","03",48.0,0.0,"2515597"],["1600092","YAMA EXPERT PROF. COLOR S. AMONIA N. 6.66 LOU. ESC. VM. INT.","03",72.0,0.0,"2607126"],["1600093","YAMA EXPERT PROF. COLOR S. AMONIA N. 6.7 LOURO ESC. CHOC.","03",264.0,0.0,"2607303"],["1600094","YAMA EXPERT PROF. COLOR S. AMONIA N. 7.0 LOURO MEDIO","03",6.0,0.0,"2607304"],["1600094","YAMA EXPERT PROF. COLOR S. AMONIA N. 7.0 LOURO MEDIO","03",324.0,0.0,"2612446"],["1600094","YAMA EXPERT PROF. COLOR S. AMONIA N. 7.0 LOURO MEDIO","03",240.0,0.0,"2616222"],["1600095","YAMA EXPERT PROF. COLOR S. AMONIA N. 7.1 LOURO MEDIO ACINZEN","03",162.0,0.0,"2604922K"],["1600095","YAMA EXPERT PROF. COLOR S. AMONIA N. 7.1 LOURO MEDIO ACINZEN","03",150.0,0.0,"2615701"],["1600096","YAMA EXPERT PROF. COLOR S. AMONIA N. 7.3 LOURO MEDIO DOURADO","03",222.0,0.0,"2608882"],["1600097","YAMA EXPERT PROF. COLOR S. AMONIA N. 7.7 LOURO MEDIO MARROM","03",210.0,0.0,"2612447"],["1600098","YAMA EXPERT PROF. COLOR S. AMONIA N. 8.0 LOURO CLARO","03",162.0,0.0,"2607305"],["1600099","YAMA EXPERT PROF. COLOR S. AMONIA N. 8.4 LOURO CLARO ACOBR.","03",84.0,0.0,"2531622K"],["1600100","YAMA EXPERT PROF. COLOR S. AMONIA N. 9.0 LOURO MT CLARO","03",102.0,0.0,"2609203"],["1600101","YAMA EXPERT PROF. COLOR S. AMONIA N. 9.1 LOURO MT CL. ACINZ.","03",180.0,0.0,"2607306"],["1600104","YAMA EXPERT COLOR 3D MAX 1.0 PRETO 60G","03",48.0,0.0,"2610932"],["1600105","YAMA EXPERT COLOR 3D MAX 3.0 CASTANHO ESCURO 60G","03",6.0,0.0,"2609204"],["1600105","YAMA EXPERT COLOR 3D MAX 3.0 CASTANHO ESCURO 60G","03",60.0,0.0,"2617010"],["1600106","YAMA EXPERT COLOR 3D MAX 4.0 CASTANHO MEDIO 60G","03",48.0,0.0,"2617012"],["1600107","YAMA EXPERT COLOR 3D MAX 4.65 CASTANHO AVERM ACAJU 60G","03",18.0,0.0,"2502305"],["1600108","YAMA EXPERT COLOR 3D MAX 5.0 CASTANHO CLARO 60G","03",36.0,0.0,"2612448"],["1600109","YAMA EXPERT COLOR 3D MAX 6.0 LOURO ESCURO  60G","03",18.0,0.0,"2617011"],["1600110","YAMA EXPERT COLOR 3D MAX 7.0 LOURO MEDIO 60G","03",6.0,0.0,"2612566"],["1600110","YAMA EXPERT COLOR 3D MAX 7.0 LOURO MEDIO 60G","03",84.0,0.0,"2617013"],["1600111","YAMA EXPERT COLOR 3D MAX 7.12 LOURO CINZA IRISADO 60G","03",24.0,0.0,"2609208"],["1600112","YAMA EXPERT COLOR 3D MAX 7.31 LOURO MED DOURAD ACINZ 60G","03",24.0,0.0,"2529565"],["1600113","YAMA EXPERT COLOR 3D MAX 7.32 LOURO MED DOUR IRISADO 60G","03",72.0,0.0,"2609945"],["1600114","YAMA EXPERT COLOR 3D MAX 7.53 LOURO MED ACAJU DOURAD 60G","03",42.0,0.0,"2502544"],["1600114","YAMA EXPERT COLOR 3D MAX 7.53 LOURO MED ACAJU DOURAD 60G","03",24.0,0.0,"2523585"],["1600115","YAMA EXPERT COLOR 3D MAX 7.66 LOURO MED VERM INTENSO 60G","03",36.0,0.0,"2607503"],["1600116","YAMA EXPERT COLOR 3D MAX 7.77 LOURO MED MARROM INTEN 60G","03",90.0,0.0,"2615397"],["1600117","YAMA EXPERT COLOR 3D MAX 8.0 LOURO CLARO 60G","03",54.0,0.0,"2613981"],["1600118","YAMA EXPERT COLOR 3D MAX 8.12 LOURO CLARO CINZA IRISADO 60G","03",24.0,0.0,"2610056"],["1600119","YAMA EXPERT COLOR 3D MAX 9.0 LOURO MUITO CLARO 60G","03",54.0,0.0,"2607506"],["1600120","YAMA EXPERT COLOR 3D MAX 9.03 LOURO MUITO CLARO BEGE 60G","03",72.0,0.0,"2613982"],["1600121","YAMA EXPERT COLOR 3D MAX 9.11 LOURO MTO CLAR CINZ INTEN 60G","03",66.0,0.0,"2514049"],["1600122","YAMA EXPERT COLOR 3D MAX 10.0 LOURO CLARISSIMO 60G","03",36.0,0.0,"2609324"],["1600123","YAMA EXPERT COLOR 3D MAX 10.32 LOURO CLARISSI DOUR IRISD 60G","03",54.0,0.0,"2609325"],["23609","YAMÁ BEAUTY CARE SHAMPOO CRISTAL 900ML","03",18.0,0.0,"2620143M"],["23845","CONJ PO DESC ACTIVE  20G  OX 40 VOL 60ML","03",2160.0,0.0,"2611358"],["2400001","OX. CREMOSA PROFESSIONAL 10VOL 60ML","03",540.0,0.0,"2605183"],["2400001","OX. CREMOSA PROFESSIONAL 10VOL 60ML","03",72.0,0.0,"2617034"],["2400003","OX. CREMOSA PROFESSIONAL 30 VOL 60ML","03",912.0,0.0,"2611398"],["2400003","OX. CREMOSA PROFESSIONAL 30 VOL 60ML","03",48.0,0.0,"2617032"],["2400004","OX. CREMOSA PROFESSIONAL 40 VOL 60ML","03",588.0,0.0,"2614530"],["2400005","EMULSAO REVELADORA PROFESSIONAL 6 VOL 100ML","03",432.0,0.0,"2613354"],["2400005","EMULSAO REVELADORA PROFESSIONAL 6 VOL 100ML","03",36.0,0.0,"2616260"],["2400006","OX. CREMOSA PROFESSIONAL 10 VOL 100ML","03",6024.0,0.0,"2615831"],["2400008","OX. CREMOSA PROFESSIONAL 30 VOL 100ML","03",7596.0,0.0,"2615291"],["2400008","OX. CREMOSA PROFESSIONAL 30 VOL 100ML","03",4704.0,0.0,"2615890"],["2400009","OX. CREMOSA PROFESSIONAL 40 VOL 100ML","03",5064.0,0.0,"2615622"],["2400010","OX. CREMOSA PROFESSIONAL AMETISTA 30VOL 100ML","03",2520.0,0.0,"2615434"],["2400011","OX. CREMOSA PROFESSIONAL AMETISTA 40VOL 100ML","03",2316.0,0.0,"2615619"],["2400012","EMULSAO REVELADORA PROFESSIONAL 6 VOL 900ML","03",42.0,0.0,"2619596"],["2400013","OX. CREMOSA PROFESSIONAL 10 VOL 900ML","03",390.0,0.0,"2616513"],["2400013","OX. CREMOSA PROFESSIONAL 10 VOL 900ML","03",162.0,0.0,"2621579"],["2400014","OX. CREMOSA PROFESSIONAL 20 VOL 900ML","03",1290.0,0.0,"2616515"],["2400014","OX. CREMOSA PROFESSIONAL 20 VOL 900ML","03",54.0,0.0,"2620042"],["2400015","OX. CREMOSA PROFESSIONAL 30 VOL 900ML","03",1176.0,0.0,"2616165"],["2400015","OX. CREMOSA PROFESSIONAL 30 VOL 900ML","03",12.0,0.0,"2619971"],["2400016","OX. CREMOSA PROFESSIONAL 40 VOL 900ML","03",390.0,0.0,"2616397"],["2400016","OX. CREMOSA PROFESSIONAL 40 VOL 900ML","03",3066.0,0.0,"2616443"],["2400018","OX. CREMOSA PROFESSIONAL AMETISTA 40VOL 900ML","03",810.0,0.0,"2612987"],["2400018","OX. CREMOSA PROFESSIONAL AMETISTA 40VOL 900ML","03",1608.0,0.0,"2612988"],["2400018","OX. CREMOSA PROFESSIONAL AMETISTA 40VOL 900ML","03",1200.0,0.0,"2613127"],["2400021","OX. CREMOSA PROFESSIONAL AMETISTA 20VOL 100ML","03",84.0,0.0,"2620469"],["2400022","OX. CREMOSA PROFESSIONAL AMETISTA 20VOL 900ML","03",48.0,0.0,"2521791"],["2400022","OX. CREMOSA PROFESSIONAL AMETISTA 20VOL 900ML","03",24.0,0.0,"2620469"],["3200003","YAMA BLOND REPAIR SERUM FINALIZADOR 30ML","03",48.0,0.0,"2514383"],["3200004","YAMA BLOND REPAIR SHAMPOO ILUMINADOR 280ML","03",12.0,0.0,"2516601"],["3200005","YAMA BLOND REPAIR SOS RECONSTRUCAO 120ML","03",12.0,0.0,"2502306"],["3200006","YAMA BLOND REPAIR KIT SHAMPOO + CONDICIONADOR ILUMINADOR","03",936.0,0.0,"2527026"],["3200008","YAMA CURLY REPAIR CONDICIONADOR LIMPANTE CO WASH 180ML","03",24.0,0.0,"2605006"],["3200009","YAMA CURLY REPAIR CREME PARA PENTEAR 250G","03",48.0,0.0,"2521524"],["3200010","YAMA CURLY REPAIR CREME PARA PENTEAR 900G","03",48.0,0.0,"2518476"],["3200011","YAMA CURLY REPAIR GELEIA MODELADORA 500ML","03",12.0,0.0,"2618762"],["3200012","YAMA CURLY REPAIR MASCARA 500G","03",30.0,0.0,"2521623"],["3200013","YAMA CURLY REPAIR OLEO DE UMECTACAO 100ML","03",12.0,0.0,"2508258"],["3200014","YAMA CURLY REPAIR SHAMPOO LOW POO 280ML","03",36.0,0.0,"2606656"],["3200015","YAMA CURLY REPAIR KIT SHAMPOO LOW POO + COND. INTENSIVO","03",120.0,0.0,"2522447"],["3200015","YAMA CURLY REPAIR KIT SHAMPOO LOW POO + COND. INTENSIVO","03",174.0,0.0,"2528022"],["3200015","YAMA CURLY REPAIR KIT SHAMPOO LOW POO + COND. INTENSIVO","03",54.0,0.0,"2528790"],["3200016","YAMA LONG REPAIR CONDICIONADOR FORTALECEDOR 200ML","03",36.0,0.0,"2520172"],["3200017","YAMA LONG REPAIR MASCARA FORTALECEDORA 180G","03",90.0,0.0,"2520966"],["3200018","YAMA LONG REPAIR SHAMPOO FORTALECEDOR 280ML","03",24.0,0.0,"2526932"],["3200019","YAMA LONG REPAIR SPRAY LEAVE-IN FORTALECEDOR 120ML","03",12.0,0.0,"2518475"],["3200020","YAMA LONG REPAIR KIT SHAMPOO + CONDICIONADOR FORTALECEDOR","03",444.0,0.0,"2522719"],["3200020","YAMA LONG REPAIR KIT SHAMPOO + CONDICIONADOR FORTALECEDOR","03",90.0,0.0,"2528794"],["3200024","YAMA BLOND REPAIR AMPOLA RECONSTRUTORA 18 ML","03",24.0,0.0,"2506687"],["3200025","YAMA CURLY REPAIR AMPOLA NUTRITIVA 18 ML","03",24.0,0.0,"2426019"],["3200026","YAMA LISS REPAIR AMPOLA HIDRATANTE 18 ML","03",48.0,0.0,"2506689"],["3200027","YAMA LONG REPAIR AMPOLA FORTALECEDORA 18 ML","03",24.0,0.0,"2426621"],["3200028","YAMA BLOND REPAIR HIDRATACAO NOTURNA 150 ML","03",12.0,0.0,"2418235"],["3200029","YAMA CURLY REPAIR HIDRATACAO NOTURNA 150 ML","03",12.0,0.0,"2418241"],["3200038","YAMA GLYCOLIC REPAIR CONDICIONADOR 200ML","03",48.0,0.0,"2514647"],["3200038","YAMA GLYCOLIC REPAIR CONDICIONADOR 200ML","03",96.0,0.0,"2524217"],["3200039","YAMA GLYCOLIC REPAIR MASCARA ANTIPOROSIDADE 250G","03",384.0,0.0,"2533591"],["3200040","YAMA GLYCOLIC REPAIR SERUM FINALIZADOR 60ML","03",264.0,0.0,"2514974"],["3200042","YAMA SCALP REPAIR CONDICIONADOR 200 ML","03",132.0,0.0,"2514733"],["3200042","YAMA SCALP REPAIR CONDICIONADOR 200 ML","03",120.0,0.0,"2605637"],["3200043","YAMA SCALP REPAIR HIGIENIZADOR DE COURO CABELUDO 100 ML","03",192.0,0.0,"2514758"],["3200044","YAMA SCALP REPAIR SHAMPOO 280 ML","03",24.0,0.0,"2618487"],["3200045","YAMA SCALP REPAIR SHAMPOO ESFOLIANTE 150 ML","03",138.0,0.0,"2605571"]],"file":"Validador de Saldo.xlsx"};
+const $ = id => document.getElementById(id);
+const nf = new Intl.NumberFormat('pt-BR');
+const fmt = v => v == null ? '—' : nf.format(v);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const norm = s => String(s == null ? '' : s).trim();
+
+let G = DATA.g, T = DATA.t;          // G: [cod,desc,lote,saldo,empenhado,disponivel,bloqueado]  T: [cod,desc,armazem,qtd,empenho,lote]
+let entries = [];
+let filt = { q:'', gbase:'disp', tbase:'qtd', block:'', arm:'', status:'' };
+let sortKey = 'status', sortDir = 1, rows = [];
+const STORE = 'validador-saldo-lancamentos';
+
+try { entries = JSON.parse(localStorage.getItem(STORE) || '[]') || []; } catch (e) { entries = []; }
+const saveEntries = () => { try { localStorage.setItem(STORE, JSON.stringify(entries)); } catch (e) {} };
+
+function fillOptions(){
+  const blocks = [...new Set(G.map(r => r[6]))].sort();
+  const arms = [...new Set(T.map(r => r[2]))].sort();
+  $('f-block').innerHTML = '<option value="">Todos</option>' + blocks.map(b => `<option>${esc(b)}</option>`).join('');
+  $('f-arm').innerHTML = '<option value="">Todos</option>' + arms.map(a => `<option>${esc(a)}</option>`).join('');
+  const seen = new Map();
+  [...G, ...T].forEach(r => { if (!seen.has(r[0])) seen.set(r[0], r[1]); });
+  $('codes').innerHTML = [...seen.keys()].map(c => `<option value="${esc(c)}">${esc(seen.get(c))}</option>`).join('');
+  $('src').textContent = `Fonte: ${DATA.file} · Genica ${G.length} linhas · Totvs ${T.length} linhas`;
+}
+
+function readFilters(){
+  filt = { q: norm($('f-q').value).toLowerCase(), gbase: $('f-gbase').value, tbase: $('f-tbase').value,
+           block: $('f-block').value, arm: $('f-arm').value, status: $('f-status').value };
+}
+
+function consolidate(){
+  const map = new Map();
+  const get = (cod, desc) => {
+    let o = map.get(cod);
+    if (!o) { o = { cod, desc: desc || '', g: null, t: null, edited: false }; map.set(cod, o); }
+    else if (!o.desc && desc) o.desc = desc;
+    return o;
+  };
+  G.forEach(r => {
+    if (filt.block && r[6] !== filt.block) return;
+    const o = get(r[0], r[1]);
+    o.g = (o.g || 0) + (filt.gbase === 'disp' ? r[5] : r[3]);
+  });
+  T.forEach(r => {
+    if (filt.arm && r[2] !== filt.arm) return;
+    const o = get(r[0], r[1]);
+    o.t = (o.t || 0) + (filt.tbase === 'disp' ? r[3] - r[4] : r[3]);
+  });
+  entries.forEach(e => {
+    const o = get(e.cod, e.desc);
+    if (e.desc && !o.desc) o.desc = e.desc;
+    const cur = o[e.sys];
+    o[e.sys] = e.mode === 'set' ? e.qtd : (cur || 0) + e.qtd;
+    o.edited = true;
+  });
+  const out = [...map.values()];
+  out.forEach(o => {
+    o.diff = (o.g == null || o.t == null) ? null : o.g - o.t;
+    o.status = o.g == null ? 'Ausente na Genica' : o.t == null ? 'Ausente no Totvs' : o.diff === 0 ? 'OK' : 'Divergente';
+  });
+  return out;
+}
+
+const STATUS_CLASS = { 'OK':'s-ok', 'Divergente':'s-div', 'Ausente no Totvs':'s-nt', 'Ausente na Genica':'s-ng' };
+const STATUS_RANK = { 'Divergente':0, 'Ausente no Totvs':1, 'Ausente na Genica':2, 'OK':3 };
+
+function render(){
+  const all = consolidate();
+  const counts = { total: all.length, 'OK':0, 'Divergente':0, 'Ausente no Totvs':0, 'Ausente na Genica':0 };
+  all.forEach(o => counts[o.status]++);
+  const chipDefs = [['', 'Todos', counts.total], ['OK','OK',counts['OK']], ['Divergente','Divergente',counts['Divergente']],
+                    ['Ausente no Totvs','Ausente no Totvs',counts['Ausente no Totvs']], ['Ausente na Genica','Ausente na Genica',counts['Ausente na Genica']]];
+  $('chips').innerHTML = chipDefs.map(([v,l,n]) =>
+    `<button type="button" class="chip" data-s="${esc(v)}" aria-pressed="${filt.status === v}"><span>${l}</span><b>${nf.format(n)}</b></button>`).join('');
+
+  rows = all.filter(o => (!filt.status || o.status === filt.status) &&
+    (!filt.q || o.cod.toLowerCase().includes(filt.q) || o.desc.toLowerCase().includes(filt.q)));
+  rows.sort((a, b) => {
+    let r;
+    if (sortKey === 'status') r = (STATUS_RANK[a.status] - STATUS_RANK[b.status]) || (Math.abs(b.diff || 0) - Math.abs(a.diff || 0));
+    else if (['g','t','diff'].includes(sortKey)) r = (a[sortKey] ?? -Infinity) - (b[sortKey] ?? -Infinity);
+    else r = String(a[sortKey]).localeCompare(String(b[sortKey]), 'pt-BR', { numeric:true });
+    return r * sortDir || a.cod.localeCompare(b.cod, 'pt-BR', { numeric:true });
+  });
+
+  $('tbody').innerHTML = rows.map(o => {
+    const dc = o.diff == null ? 'diff-zero' : o.diff < 0 ? 'diff-neg' : o.diff > 0 ? 'diff-pos' : 'diff-zero';
+    const d = o.diff == null ? '—' : (o.diff > 0 ? '+' : '') + nf.format(o.diff);
+    return `<tr><td class="cod">${esc(o.cod)}</td><td class="desc">${esc(o.desc || '—')}${o.edited ? '<span class="edited">lançado</span>' : ''}</td>` +
+      `<td class="num">${fmt(o.g)}</td><td class="num">${fmt(o.t)}</td><td class="num ${dc}">${d}</td>` +
+      `<td><span class="status ${STATUS_CLASS[o.status]}">${o.status}</span></td></tr>`;
+  }).join('');
+  $('empty').hidden = rows.length > 0;
+  $('tmeta').textContent = `${nf.format(rows.length)} de ${nf.format(all.length)} produtos`;
+  document.querySelectorAll('#tbl th').forEach(th => {
+    th.setAttribute('aria-sort', th.dataset.k === sortKey ? (sortDir === 1 ? 'ascending' : 'descending') : 'none');
+  });
+  $('f-status').value = filt.status;
+  renderEntries();
+}
+
+function renderEntries(){
+  $('entries').innerHTML = entries.map((e, i) =>
+    `<li><span><b>${esc(e.cod)}</b> · ${e.sys === 'g' ? 'Genica' : 'Totvs'} · ${e.mode === 'set' ? 'substituir' : 'somar'} <span class="q">${nf.format(e.qtd)}</span></span>` +
+    `<button class="x" type="button" data-i="${i}" aria-label="Remover lançamento ${esc(e.cod)}">×</button></li>`).join('');
+  $('noentries').hidden = entries.length > 0;
+  $('clear').hidden = entries.length === 0;
+}
+
+// Eventos
+$('filters').addEventListener('submit', ev => { ev.preventDefault(); readFilters(); render(); });
+$('reset').addEventListener('click', () => {
+  $('filters').reset(); readFilters(); render();
+});
+$('chips').addEventListener('click', ev => {
+  const b = ev.target.closest('.chip'); if (!b) return;
+  $('f-status').value = b.dataset.s; readFilters(); render();
+});
+document.querySelector('#tbl thead').addEventListener('click', ev => {
+  const th = ev.target.closest('th'); if (!th) return;
+  const k = th.dataset.k;
+  if (sortKey === k) sortDir = -sortDir; else { sortKey = k; sortDir = 1; }
+  render();
+});
+
+$('e-cod').addEventListener('input', () => {
+  const c = norm($('e-cod').value);
+  const hit = G.find(r => r[0] === c) || T.find(r => r[0] === c);
+  if (hit && !$('e-desc').dataset.touched) $('e-desc').value = hit[1];
+});
+$('e-desc').addEventListener('input', () => { $('e-desc').dataset.touched = '1'; });
+$('entry').addEventListener('submit', ev => {
+  ev.preventDefault();
+  const cod = norm($('e-cod').value), qtd = parseFloat($('e-qtd').value);
+  const m = $('emsg');
+  if (!cod || !isFinite(qtd)) { m.className = 'full msg err'; m.textContent = 'Informe o código e uma quantidade válida.'; return; }
+  entries.push({ cod, desc: norm($('e-desc').value), sys: $('e-sys').value, mode: $('e-mode').value, qtd });
+  saveEntries();
+  $('entry').reset(); delete $('e-desc').dataset.touched;
+  m.className = 'full msg ok'; m.textContent = `Lançamento do código ${cod} adicionado.`;
+  render();
+});
+$('entries').addEventListener('click', ev => {
+  const b = ev.target.closest('.x'); if (!b) return;
+  entries.splice(+b.dataset.i, 1); saveEntries(); render();
+});
+let clearArmed = false;
+$('clear').addEventListener('click', () => {
+  if (!clearArmed) { clearArmed = true; $('clear').textContent = 'Confirmar remoção'; setTimeout(() => { clearArmed = false; $('clear').textContent = 'Remover todos'; }, 3000); return; }
+  clearArmed = false; $('clear').textContent = 'Remover todos'; entries = []; saveEntries(); render();
+});
+
+$('copy').addEventListener('click', async () => {
+  const head = ['Código','Descrição','QTD Genica','QTD Totvs','Diferença','Status'];
+  const txt = [head, ...rows.map(o => [o.cod, o.desc, o.g ?? '', o.t ?? '', o.diff ?? '', o.status])].map(r => r.join('\t')).join('\n');
+  const m = $('topmsg');
+  try { await navigator.clipboard.writeText(txt); m.className = 'msg ok'; m.textContent = 'Tabela copiada. Cole no Excel.'; }
+  catch (e) { m.className = 'msg err'; m.textContent = 'Não foi possível copiar neste ambiente.'; }
+});
+
+
+$('export').addEventListener('click', () => {
+  const m = $('topmsg');
+  const head = ['Código','Descrição','QTD Genica','QTD Totvs','Diferença','Status'];
+  const body = rows.map(o => [o.cod, o.desc, o.g ?? '', o.t ?? '', o.diff ?? '', o.status]);
+  const stamp = new Date().toISOString().slice(0, 10);
+  try {
+    if (typeof XLSX !== 'undefined') {
+      const ws = XLSX.utils.aoa_to_sheet([head, ...body]);
+      ws['!cols'] = [{wch:14},{wch:52},{wch:12},{wch:12},{wch:12},{wch:20}];
+      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Validação');
+      XLSX.writeFile(wb, `Validador_Saldo_${stamp}.xlsx`);
+    } else {
+      const csv = '\ufeff' + [head, ...body].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\r\n');
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([csv], { type:'text/csv;charset=utf-8' }));
+      a.download = `Validador_Saldo_${stamp}.csv`; a.click();
+    }
+    m.className = 'msg ok'; m.textContent = `Exportadas ${nf.format(rows.length)} linhas, respeitando os filtros aplicados.`;
+  } catch (e) {
+    m.className = 'msg err'; m.textContent = 'Não foi possível baixar aqui. Abra o arquivo Validador.html baixado ou use Copiar tabela e cole no Excel.';
+  }
+});
+
+$('upload').addEventListener('change', async ev => {
+  const file = ev.target.files[0]; const m = $('topmsg'); if (!file) return;
+  if (typeof XLSX === 'undefined') { m.className = 'msg err'; m.textContent = 'Leitor de planilhas indisponível agora.'; return; }
+  try {
+    const wb = XLSX.read(await file.arrayBuffer(), { type:'array' });
+    let ng = null, nt = null;
+    wb.SheetNames.forEach(n => {
+      const js = XLSX.utils.sheet_to_json(wb.Sheets[n], { defval:'', raw:true });
+      if (!js.length) return;
+      const keys = Object.keys(js[0]);
+      const num = v => { const x = typeof v === 'number' ? v : parseFloat(String(v).replace(/\./g,'').replace(',','.')); return isFinite(x) ? x : 0; };
+      if (keys.includes('Código') && keys.includes('Saldo')) {
+        ng = js.filter(r => norm(r['Código'])).map(r => [norm(r['Código']), norm(r['Descrição']), norm(r['Lote']), num(r['Saldo']), num(r['Saldo Empenhado']), num(r['Saldo Disponível'] === '' ? r['Saldo'] : r['Saldo Disponível']), norm(r['Bloqueado'])]);
+      } else if (keys.includes('Produto') && keys.includes('Quantidade')) {
+        nt = js.filter(r => norm(r['Produto'])).map(r => [norm(r['Produto']), norm(r['Desc Produto']), norm(r['Armazem']), num(r['Quantidade']), num(r['Empenho']), norm(r['Lote'])]);
+      }
+    });
+    if (!ng && !nt) throw new Error('colunas');
+    if (ng) G = ng; if (nt) T = nt;
+    DATA.file = file.name; fillOptions(); filt = { ...filt, block:'', arm:'' }; readFilters(); render();
+    m.className = 'msg ok'; m.textContent = `Planilha carregada: ${ng ? 'Genica' : ''}${ng && nt ? ' e ' : ''}${nt ? 'Totvs' : ''} atualizados.`;
+  } catch (e) {
+    m.className = 'msg err'; m.textContent = 'Não encontrei as abas esperadas. Use as colunas Código/Saldo (Genica) e Produto/Quantidade (Totvs).';
+  }
+  ev.target.value = '';
+});
+
+fillOptions(); readFilters(); render();
+</script>
+
+</body>
+</html>
